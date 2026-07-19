@@ -47,19 +47,27 @@ Test-Case 'workflow preserves manifest order' {
         $calls.Add($Name) | Out-Null
         New-InstallResult $Name INSTALLED $Package.Id
     }.GetNewClosure()
+    $doctor = {
+        $calls.Add('Doctor') | Out-Null
+        New-CheckResult 'Injected doctor' PASS ok
+    }.GetNewClosure()
 
-    $results = @(Invoke-BootstrapWorkflow `
+    $workflow = Invoke-BootstrapWorkflow `
         -Manifest $manifest `
         -PackageInstaller $installer `
         -GitLfsInstaller { New-InstallResult 'Git LFS initialization' INSTALLED ok } `
         -RustInstaller { New-InstallResult 'Pinned Rust toolchain' INSTALLED ok } `
-        -PathRefresher { 'refreshed' })
+        -PathRefresher { 'refreshed' } `
+        -Doctor $doctor
+    $results = @($workflow.InstallResults)
 
-    Assert-Equal ($manifest.Order -join ',') ($calls -join ',')
+    Assert-Equal (($manifest.Order + 'Doctor') -join ',') ($calls -join ',')
     Assert-Equal (($manifest.Order + @(
         'Git LFS initialization',
         'Pinned Rust toolchain'
     )) -join ',') ($results.Name -join ',')
+    Assert-Equal 1 @($workflow.DoctorReport).Count
+    Assert-Equal 'Injected doctor' $workflow.DoctorReport[0].Name
 }
 
 Test-Case 'workflow continues after independent package failure' {
@@ -69,12 +77,14 @@ Test-Case 'workflow continues after independent package failure' {
         else { New-InstallResult $Name INSTALLED $Package.Id }
     }
 
-    $results = @(Invoke-BootstrapWorkflow `
+    $workflow = Invoke-BootstrapWorkflow `
         -Manifest $manifest `
         -PackageInstaller $installer `
         -GitLfsInstaller { New-InstallResult 'Git LFS initialization' INSTALLED ok } `
         -RustInstaller { New-InstallResult 'Pinned Rust toolchain' INSTALLED ok } `
-        -PathRefresher { 'refreshed' })
+        -PathRefresher { 'refreshed' } `
+        -Doctor { New-CheckResult 'Injected doctor' PASS ok }
+    $results = @($workflow.InstallResults)
 
     Assert-True ($results.Name -contains 'Ninja')
     Assert-Equal 'FAILED' (($results | Where-Object Name -eq CMake).Status)
@@ -98,12 +108,14 @@ Test-Case 'workflow skips failed dependencies without calling their installer' {
         else { New-InstallResult $Name INSTALLED $Package.Id }
     }.GetNewClosure()
 
-    $results = @(Invoke-BootstrapWorkflow `
+    $workflow = Invoke-BootstrapWorkflow `
         -Manifest $orderedManifest `
         -PackageInstaller $installer `
         -GitLfsInstaller { New-InstallResult 'Git LFS initialization' INSTALLED ok } `
         -RustInstaller { New-InstallResult 'Pinned Rust toolchain' INSTALLED ok } `
-        -PathRefresher { 'refreshed' })
+        -PathRefresher { 'refreshed' } `
+        -Doctor { New-CheckResult 'Injected doctor' PASS ok }
+    $results = @($workflow.InstallResults)
 
     Assert-Equal 'Base,Independent' ($calls -join ',')
     Assert-Equal 'SKIPPED' (($results | Where-Object Name -eq Dependent).Status)
@@ -129,16 +141,25 @@ Test-Case 'dry run calls no installers or path refresher and returns a coherent 
         $calls.Add('path') | Out-Null
         throw 'PATH refresher must not run.'
     }.GetNewClosure()
+    $doctorCalls = New-Object System.Collections.Generic.List[string]
+    $doctor = {
+        $doctorCalls.Add('doctor') | Out-Null
+        New-CheckResult 'Injected doctor' FAIL incomplete
+    }.GetNewClosure()
 
-    $results = @(Invoke-BootstrapWorkflow `
+    $workflow = Invoke-BootstrapWorkflow `
         -Manifest $manifest `
         -PackageInstaller $packageInstaller `
         -GitLfsInstaller $gitLfsInstaller `
         -RustInstaller $rustInstaller `
         -PathRefresher $pathRefresher `
-        -DryRun)
+        -Doctor $doctor `
+        -DryRun
+    $results = @($workflow.InstallResults)
 
     Assert-Equal 0 $calls.Count
+    Assert-Equal 1 $doctorCalls.Count
+    Assert-Equal 'FAIL' $workflow.DoctorReport[0].Status
     Assert-Equal (($manifest.Order + @(
         'Git LFS initialization',
         'Pinned Rust toolchain'
@@ -255,4 +276,34 @@ Test-Case 'bootstrap preserves its primary error when error logging also fails' 
     Assert-Equal 2 $exitCode
     Assert-Match 'client editions' ($output -join "`n")
     Assert-True (-not (($output -join "`n") -match 'must stay under'))
+}
+
+Test-Case 'missing Winget is an incomplete environment' {
+    $bootstrap = (Join-Path $windowsRoot 'bootstrap.ps1').Replace("'", "''")
+    $log = (Join-Path $env:TEMP ("veloren-missing-winget-{0}.log" -f [guid]::NewGuid())).
+        Replace("'", "''")
+    $command = @"
+& {
+    function global:Get-CimInstance {
+        [pscustomobject]@{ ProductType = 1 }
+    }
+    function global:Get-Command {
+        param(`$Name, `$ErrorAction)
+        if (`$Name -eq 'winget.exe') { return `$null }
+        Microsoft.PowerShell.Core\Get-Command -Name `$Name -ErrorAction `$ErrorAction
+    }
+    & '$bootstrap' -Elevated -LogPath '$log'
+    exit `$LASTEXITCODE
+}
+"@
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $command 2>&1
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+
+    Assert-Equal 1 $exitCode
+    Assert-Match 'Winget is missing' ($output -join "`n")
+    Assert-True (-not (Test-Path -LiteralPath $log))
 }

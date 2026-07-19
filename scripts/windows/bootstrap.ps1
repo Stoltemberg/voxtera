@@ -29,7 +29,7 @@ try {
         Write-Error `
             'Winget is missing. Install Microsoft App Installer and rerun this command.' `
             -ErrorAction Continue
-        exit 2
+        exit 1
     }
 
     if ([string]::IsNullOrWhiteSpace($LogPath)) {
@@ -75,30 +75,22 @@ try {
             -LogPath $LogPath `
             -Confirm:$false
     }.GetNewClosure()
-
-    $installResults = @(
-        Invoke-BootstrapWorkflow `
-            -Manifest $manifest `
-            -PackageInstaller $packageInstaller `
-            -GitLfsInstaller $gitLfsInstaller `
-            -RustInstaller $rustInstaller `
-            -DryRun:$dryRun
-    )
-
-    if ($dryRun) {
-        $WhatIfPreference = $false
-        try {
-            $doctorReport = @(
-                Get-DoctorReport -Probes (Get-DefaultDoctorProbes -RepositoryRoot $root)
-            )
-        } finally {
-            $WhatIfPreference = $true
+    $doctor = {
+        if ($dryRun) {
+            $WhatIfPreference = $false
         }
-    } else {
-        $doctorReport = @(
-            Get-DoctorReport -Probes (Get-DefaultDoctorProbes -RepositoryRoot $root)
-        )
-    }
+        Get-DoctorReport -Probes (Get-DefaultDoctorProbes -RepositoryRoot $root)
+    }.GetNewClosure()
+
+    $workflow = Invoke-BootstrapWorkflow `
+        -Manifest $manifest `
+        -PackageInstaller $packageInstaller `
+        -GitLfsInstaller $gitLfsInstaller `
+        -RustInstaller $rustInstaller `
+        -Doctor $doctor `
+        -DryRun:$dryRun
+    $installResults = @($workflow.InstallResults)
+    $doctorReport = @($workflow.DoctorReport)
 
     if (-not $dryRun) {
         foreach ($result in $installResults) {

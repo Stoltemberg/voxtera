@@ -738,66 +738,80 @@ function Invoke-BootstrapWorkflow {
         [scriptblock]$PathRefresher = {
             Refresh-ProcessPath
         },
+        [Parameter(Mandatory)][scriptblock]$Doctor,
         [switch]$DryRun
     )
+    $installResults = New-Object System.Collections.Generic.List[object]
+
     if ($DryRun) {
         foreach ($name in $Manifest.Order) {
-            New-InstallResult -Name $name -Status 'SKIPPED' -Detail 'WhatIf'
+            $installResults.Add(
+                (New-InstallResult -Name $name -Status 'SKIPPED' -Detail 'WhatIf')
+            ) | Out-Null
         }
-        New-InstallResult `
-            -Name 'Git LFS initialization' `
-            -Status 'SKIPPED' `
-            -Detail 'WhatIf'
-        New-InstallResult `
-            -Name 'Pinned Rust toolchain' `
-            -Status 'SKIPPED' `
-            -Detail 'WhatIf'
-        return
-    }
-
-    $resultsByName = @{}
-    foreach ($name in $Manifest.Order) {
-        $package = $Manifest.Packages[$name]
-        $blockedDependency = @(
-            @($package.DependsOn) | Where-Object {
-                $resultsByName.ContainsKey($_) -and
-                $resultsByName[$_].Status -in @('FAILED', 'SKIPPED')
-            }
-        ) | Select-Object -First 1
-
-        if ($null -ne $blockedDependency) {
-            $result = New-InstallResult `
-                -Name $name `
+        $installResults.Add(
+            (New-InstallResult `
+                -Name 'Git LFS initialization' `
                 -Status 'SKIPPED' `
-                -Detail "Dependency failed: $blockedDependency"
-        } else {
-            $installOutput = @(
-                & $PackageInstaller $name $package $PackageDetector $PackageRunner
-            )
-            if ($installOutput.Count -ne 1) {
-                throw "Package installer '$name' returned $($installOutput.Count) results; expected exactly one."
+                -Detail 'WhatIf')
+        ) | Out-Null
+        $installResults.Add(
+            (New-InstallResult `
+                -Name 'Pinned Rust toolchain' `
+                -Status 'SKIPPED' `
+                -Detail 'WhatIf')
+        ) | Out-Null
+    } else {
+        $resultsByName = @{}
+        foreach ($name in $Manifest.Order) {
+            $package = $Manifest.Packages[$name]
+            $blockedDependency = @(
+                @($package.DependsOn) | Where-Object {
+                    $resultsByName.ContainsKey($_) -and
+                    $resultsByName[$_].Status -in @('FAILED', 'SKIPPED')
+                }
+            ) | Select-Object -First 1
+
+            if ($null -ne $blockedDependency) {
+                $result = New-InstallResult `
+                    -Name $name `
+                    -Status 'SKIPPED' `
+                    -Detail "Dependency failed: $blockedDependency"
+            } else {
+                $installOutput = @(
+                    & $PackageInstaller $name $package $PackageDetector $PackageRunner
+                )
+                if ($installOutput.Count -ne 1) {
+                    throw "Package installer '$name' returned $($installOutput.Count) results; expected exactly one."
+                }
+                $result = $installOutput[0]
             }
-            $result = $installOutput[0]
+
+            $resultsByName[$name] = $result
+            $installResults.Add($result) | Out-Null
+            & $PathRefresher | Out-Null
         }
 
-        $resultsByName[$name] = $result
-        $result
+        $gitLfsOutput = @(& $GitLfsInstaller $GitLfsRunner)
+        if ($gitLfsOutput.Count -ne 1) {
+            throw "Git LFS installer returned $($gitLfsOutput.Count) results; expected exactly one."
+        }
+        $installResults.Add($gitLfsOutput[0]) | Out-Null
+        & $PathRefresher | Out-Null
+
+        $rustOutput = @(& $RustInstaller $RustRunner)
+        if ($rustOutput.Count -ne 1) {
+            throw "Rust installer returned $($rustOutput.Count) results; expected exactly one."
+        }
+        $installResults.Add($rustOutput[0]) | Out-Null
         & $PathRefresher | Out-Null
     }
 
-    $gitLfsOutput = @(& $GitLfsInstaller $GitLfsRunner)
-    if ($gitLfsOutput.Count -ne 1) {
-        throw "Git LFS installer returned $($gitLfsOutput.Count) results; expected exactly one."
+    $doctorReport = @(& $Doctor)
+    [pscustomobject][ordered]@{
+        InstallResults = [object[]]($installResults.ToArray())
+        DoctorReport = [object[]]$doctorReport
     }
-    $gitLfsOutput[0]
-    & $PathRefresher | Out-Null
-
-    $rustOutput = @(& $RustInstaller $RustRunner)
-    if ($rustOutput.Count -ne 1) {
-        throw "Rust installer returned $($rustOutput.Count) results; expected exactly one."
-    }
-    $rustOutput[0]
-    & $PathRefresher | Out-Null
 }
 
 function Get-BootstrapExitCode {
