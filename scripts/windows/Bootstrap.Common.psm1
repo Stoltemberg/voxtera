@@ -647,4 +647,168 @@ function Install-PinnedRustToolchain {
     New-InstallResult -Name 'Pinned Rust toolchain' -Status 'FAILED' -Detail $detail
 }
 
+function Get-ElevationArguments {
+    param(
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$ScriptPath,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$LogPath,
+        [switch]$DryRun
+    )
+    if ($ScriptPath.Contains('"') -or $LogPath.Contains('"')) {
+        throw 'Bootstrap script and log paths cannot contain double quote characters.'
+    }
+
+    $arguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        "`"$ScriptPath`"",
+        '-Elevated',
+        '-LogPath',
+        "`"$LogPath`""
+    )
+    if ($DryRun) { $arguments += '-WhatIf' }
+    $arguments
+}
+
+function Start-ElevatedBootstrap {
+    param(
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$ScriptPath,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$LogPath,
+        [switch]$DryRun,
+        [scriptblock]$Starter = {
+            param($Executable, $Arguments)
+            Start-Process `
+                -FilePath $Executable `
+                -ArgumentList $Arguments `
+                -Verb RunAs `
+                -Wait `
+                -PassThru
+        }
+    )
+    $hostExecutable = if ($PSVersionTable.PSEdition -eq 'Core') {
+        (Get-Command pwsh.exe -ErrorAction Stop).Source
+    } else {
+        (Get-Command powershell.exe -ErrorAction Stop).Source
+    }
+    $arguments = @(Get-ElevationArguments `
+        -ScriptPath $ScriptPath `
+        -LogPath $LogPath `
+        -DryRun:$DryRun)
+    $process = & $Starter $hostExecutable $arguments
+    [int]$process.ExitCode
+}
+
+function Invoke-BootstrapWorkflow {
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary]$Manifest,
+        [scriptblock]$PackageDetector = {
+            param($Package)
+            Test-PackagePresent -Package $Package
+        },
+        [scriptblock]$PackageRunner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand -FilePath $FilePath -Arguments $Arguments
+        },
+        [scriptblock]$PackageInstaller = {
+            param($Name, $Package, $Detector, $Runner)
+            Install-WingetPackage `
+                -Name $Name `
+                -Package $Package `
+                -Detector $Detector `
+                -Runner $Runner `
+                -Confirm:$false
+        },
+        [scriptblock]$GitLfsRunner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand -FilePath $FilePath -Arguments $Arguments
+        },
+        [scriptblock]$GitLfsInstaller = {
+            param($Runner)
+            Initialize-GitLfs -Runner $Runner -Confirm:$false
+        },
+        [scriptblock]$RustRunner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand -FilePath $FilePath -Arguments $Arguments
+        },
+        [scriptblock]$RustInstaller = {
+            param($Runner)
+            Install-PinnedRustToolchain -Runner $Runner -Confirm:$false
+        },
+        [scriptblock]$PathRefresher = {
+            Refresh-ProcessPath
+        },
+        [switch]$DryRun
+    )
+    if ($DryRun) {
+        foreach ($name in $Manifest.Order) {
+            New-InstallResult -Name $name -Status 'SKIPPED' -Detail 'WhatIf'
+        }
+        New-InstallResult `
+            -Name 'Git LFS initialization' `
+            -Status 'SKIPPED' `
+            -Detail 'WhatIf'
+        New-InstallResult `
+            -Name 'Pinned Rust toolchain' `
+            -Status 'SKIPPED' `
+            -Detail 'WhatIf'
+        return
+    }
+
+    $resultsByName = @{}
+    foreach ($name in $Manifest.Order) {
+        $package = $Manifest.Packages[$name]
+        $blockedDependency = @(
+            @($package.DependsOn) | Where-Object {
+                $resultsByName.ContainsKey($_) -and
+                $resultsByName[$_].Status -in @('FAILED', 'SKIPPED')
+            }
+        ) | Select-Object -First 1
+
+        if ($null -ne $blockedDependency) {
+            $result = New-InstallResult `
+                -Name $name `
+                -Status 'SKIPPED' `
+                -Detail "Dependency failed: $blockedDependency"
+        } else {
+            $installOutput = @(
+                & $PackageInstaller $name $package $PackageDetector $PackageRunner
+            )
+            if ($installOutput.Count -ne 1) {
+                throw "Package installer '$name' returned $($installOutput.Count) results; expected exactly one."
+            }
+            $result = $installOutput[0]
+        }
+
+        $resultsByName[$name] = $result
+        $result
+        & $PathRefresher | Out-Null
+    }
+
+    $gitLfsOutput = @(& $GitLfsInstaller $GitLfsRunner)
+    if ($gitLfsOutput.Count -ne 1) {
+        throw "Git LFS installer returned $($gitLfsOutput.Count) results; expected exactly one."
+    }
+    $gitLfsOutput[0]
+    & $PathRefresher | Out-Null
+
+    $rustOutput = @(& $RustInstaller $RustRunner)
+    if ($rustOutput.Count -ne 1) {
+        throw "Rust installer returned $($rustOutput.Count) results; expected exactly one."
+    }
+    $rustOutput[0]
+    & $PathRefresher | Out-Null
+}
+
+function Get-BootstrapExitCode {
+    param(
+        [Parameter(Mandatory)][object[]]$InstallResults,
+        [Parameter(Mandatory)][object[]]$DoctorReport
+    )
+    if (@($InstallResults | Where-Object Status -eq 'FAILED').Count -gt 0) {
+        return 1
+    }
+    Get-DoctorExitCode -Report $DoctorReport
+}
+
 Export-ModuleMember -Function *
