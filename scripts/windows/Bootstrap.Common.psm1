@@ -108,10 +108,10 @@ function Get-PlatformClassification {
             Detail = 'Only 64-bit Windows is supported.'
         }
     }
-    if ($MajorVersion -lt 10) {
+    if ($MajorVersion -ne 10) {
         return [pscustomobject][ordered]@{
             Supported = $false
-            Detail = 'Only Windows 10/11 is supported.'
+            Detail = 'Only Windows 10/11 (NT major version 10) is supported.'
         }
     }
     if ($ProductType -ne 1) {
@@ -176,6 +176,26 @@ function Get-CommandCheck {
         return New-CheckResult $Name FAIL (($result.Output -join ' ').Trim())
     }
     New-CheckResult $Name PASS (($result.Output -join ' ').Trim())
+}
+
+function Get-CommandPresenceCheck {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Command,
+        [scriptblock]$Resolver = {
+            param($CommandName)
+            Get-Command $CommandName -ErrorAction SilentlyContinue
+        }
+    )
+    $resolved = & $Resolver $Command
+    if ($null -eq $resolved) {
+        return New-CheckResult $Name FAIL "$Command is missing."
+    }
+    $path = [string]$resolved.Source
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return New-CheckResult $Name FAIL "$Command did not resolve to an executable path."
+    }
+    New-CheckResult $Name PASS $path
 }
 
 function Get-VisualStudioCheck {
@@ -302,8 +322,15 @@ function Get-RustComponentsCheck {
 }
 
 function Get-DefaultDoctorProbes {
-    param([string]$RepositoryRoot = (Get-RepositoryRoot))
+    param(
+        [string]$RepositoryRoot = (Get-RepositoryRoot),
+        [scriptblock]$CommandResolver = {
+            param($CommandName)
+            Get-Command $CommandName -ErrorAction SilentlyContinue
+        }
+    )
     $root = $RepositoryRoot
+    $resolver = $CommandResolver
     [ordered]@{
         Platform = { Get-PlatformCheck }
         Winget = { Get-CommandCheck Winget winget.exe @('--version') }
@@ -323,7 +350,7 @@ function Get-DefaultDoctorProbes {
         CMake = { Get-CommandCheck CMake cmake.exe @('--version') }
         Ninja = { Get-CommandCheck Ninja ninja.exe @('--version') }
         Python = { Get-CommandCheck Python python.exe @('--version') }
-        Cargo = { Get-CommandCheck Cargo cargo.exe @('--version') }
+        Cargo = ({ Get-CommandPresenceCheck Cargo cargo.exe $resolver }).GetNewClosure()
         Rustup = { Get-RustupCheck }
         PinnedToolchain = ({ Get-PinnedToolchainCheck $root }).GetNewClosure()
         RustComponents = ({ Get-RustComponentsCheck $root }).GetNewClosure()

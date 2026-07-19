@@ -69,6 +69,29 @@ Test-Case 'Windows versions before 10 are unsupported' {
     Assert-Match 'Windows 10/11' $classification.Detail
 }
 
+Test-Case 'NT major versions after 10 are unsupported' {
+    $classification = Get-PlatformClassification `
+        -Platform ([PlatformID]::Win32NT) -Is64BitOperatingSystem $true -MajorVersion 11 -ProductType 1
+    Assert-Equal $false $classification.Supported
+    Assert-Match 'NT major version 10' $classification.Detail
+}
+
+Test-Case 'NT major version 11 is fatal at the platform check' {
+    $caught = $null
+    try {
+        Get-PlatformCheck `
+            -Platform ([PlatformID]::Win32NT) `
+            -Is64BitOperatingSystem $true `
+            -MajorVersion 11 `
+            -VersionString 'Microsoft Windows NT 11.0' `
+            -ProductTypeProvider { 1 } | Out-Null
+    } catch {
+        $caught = $_.Exception
+    }
+    Assert-True ($null -ne $caught)
+    Assert-Match 'NT major version 10' $caught.Message
+}
+
 Test-Case 'Windows Server is unsupported' {
     $classification = Get-PlatformClassification `
         -Platform ([PlatformID]::Win32NT) -Is64BitOperatingSystem $true -MajorVersion 10 -ProductType 3
@@ -145,6 +168,20 @@ Test-Case 'default doctor uses one-result Rust probes in order' {
     Assert-Equal 'PinnedToolchain' $keys[13]
     Assert-Equal 'RustComponents' $keys[14]
     Assert-Equal 'Restart' $keys[15]
+}
+
+Test-Case 'default Cargo probe reports its resolved shim without executing it' {
+    $fakeCargoPath = 'C:\test\ambient-cargo-must-not-run.exe'
+    $resolver = {
+        param($Command)
+        if ($Command -ne 'cargo.exe') { throw "Unexpected command lookup: $Command" }
+        [pscustomobject]@{ Source = $fakeCargoPath }
+    }.GetNewClosure()
+    $probes = Get-DefaultDoctorProbes `
+        -RepositoryRoot (Get-RepositoryRoot) -CommandResolver $resolver
+    $result = & $probes.Cargo
+    Assert-Equal 'PASS' $result.Status
+    Assert-Equal $fakeCargoPath $result.Detail
 }
 
 Test-Case 'unsupported Windows Server is fatal at the entrypoint' {
