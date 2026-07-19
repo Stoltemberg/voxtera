@@ -35,7 +35,14 @@ Test-Case 'elevated bootstrap uses the injected starter and propagates its exit 
 
     Assert-Equal 37 $exitCode
     Assert-Equal 1 $calls.Count
-    Assert-Match 'powershell(\.exe)?$' $calls[0].Executable
+    $expectedHost = if ($PSVersionTable.PSEdition -eq 'Core') {
+        'pwsh.exe'
+    } else {
+        'powershell.exe'
+    }
+    Assert-Equal $expectedHost (
+        [System.IO.Path]::GetFileName($calls[0].Executable)
+    )
     Assert-True ($calls[0].Arguments -contains '-WhatIf')
     Assert-True ($calls[0].Arguments -contains '"C:\log path\bootstrap.log"')
 }
