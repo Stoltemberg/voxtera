@@ -53,11 +53,17 @@ function New-BootstrapLogPath {
 
 function Write-BootstrapLog {
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Message)
-    $directory = Split-Path -Parent $Path
+    $logRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'VelorenDev\logs'))
+    $normalizedPath = [System.IO.Path]::GetFullPath($Path)
+    $logRootPrefix = $logRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $normalizedPath.StartsWith($logRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Bootstrap log path must stay under: $logRoot"
+    }
+    $directory = Split-Path -Parent $normalizedPath
     if (-not (Test-Path -LiteralPath $directory)) {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
-    Add-Content -LiteralPath $Path -Value ("[{0:o}] {1}" -f (Get-Date), $Message)
+    Add-Content -LiteralPath $normalizedPath -Value ("[{0:o}] {1}" -f (Get-Date), $Message)
 }
 
 function Test-IsAdministrator {

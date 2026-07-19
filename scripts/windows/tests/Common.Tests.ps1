@@ -32,3 +32,29 @@ Test-Case 'log path stays under LOCALAPPDATA' {
     Assert-True $path.StartsWith($env:LOCALAPPDATA, [System.StringComparison]::OrdinalIgnoreCase)
     Assert-Match 'VelorenDev[\\/]logs' $path
 }
+
+Test-Case 'bootstrap log rejects a path outside the designated log directory' {
+    $outsidePath = Join-Path $env:TEMP ("veloren-bootstrap-{0}.log" -f [guid]::NewGuid())
+    try {
+        $threw = $false
+        try {
+            Write-BootstrapLog -Path $outsidePath -Message 'must not be written'
+        } catch {
+            $threw = $true
+        }
+        Assert-True $threw
+    } finally {
+        Remove-Item -LiteralPath $outsidePath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Test-Case 'bootstrap log writes to a path returned by New-BootstrapLogPath' {
+    $path = New-BootstrapLogPath -Timestamp ([datetime]'2026-07-18T12:34:56')
+    try {
+        Write-BootstrapLog -Path $path -Message 'valid bootstrap log entry'
+        Assert-True (Test-Path -LiteralPath $path)
+        Assert-Match 'valid bootstrap log entry' (Get-Content -LiteralPath $path -Raw)
+    } finally {
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    }
+}
