@@ -51,14 +51,20 @@ function New-BootstrapLogPath {
     Join-Path $directory ("bootstrap-{0}.log" -f $Timestamp.ToString('yyyyMMdd-HHmmss'))
 }
 
-function Write-BootstrapLog {
-    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Message)
+function Resolve-BootstrapLogPath {
+    param([Parameter(Mandatory)][string]$Path)
     $logRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'VelorenDev\logs'))
     $normalizedPath = [System.IO.Path]::GetFullPath($Path)
     $logRootPrefix = $logRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
     if (-not $normalizedPath.StartsWith($logRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Bootstrap log path must stay under: $logRoot"
     }
+    $normalizedPath
+}
+
+function Write-BootstrapLog {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Message)
+    $normalizedPath = Resolve-BootstrapLogPath -Path $Path
     $directory = Split-Path -Parent $normalizedPath
     if (-not (Test-Path -LiteralPath $directory)) {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
@@ -416,6 +422,24 @@ function Test-PackagePresent {
     $false
 }
 
+function Test-PinnedRustToolchainListed {
+    param(
+        [Parameter(Mandatory)][string]$Pinned,
+        [string[]]$Entries = @()
+    )
+    $pattern = '^{0}(?:-(?:x86_64|aarch64)-pc-windows-(?:msvc|gnu))?$' -f
+        [regex]::Escape($Pinned)
+    foreach ($entry in @($Entries)) {
+        foreach ($line in @([string]$entry -split "\r?\n")) {
+            $name = [regex]::Replace($line.Trim(), '\s+\([^)]*\)\s*$', '')
+            if ([regex]::IsMatch($name, $pattern)) {
+                return $true
+            }
+        }
+    }
+    $false
+}
+
 function Install-WingetPackage {
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -431,6 +455,10 @@ function Install-WingetPackage {
         },
         [string]$LogPath
     )
+    $resolvedLogPath = $null
+    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
+        $resolvedLogPath = Resolve-BootstrapLogPath -Path $LogPath
+    }
     if (& $Detector $Package) {
         return New-InstallResult -Name $Name -Status 'ALREADY PRESENT' -Detail $Package.Id
     }
@@ -449,8 +477,8 @@ function Install-WingetPackage {
 
     for ($attempt = 1; $attempt -le 2; $attempt++) {
         $result = & $Runner 'winget.exe' $arguments
-        if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
-            Write-BootstrapLog -Path $LogPath `
+        if ($null -ne $resolvedLogPath) {
+            Write-BootstrapLog -Path $resolvedLogPath `
                 -Message "$($result.Command) => $($result.ExitCode)"
         }
         if ($result.ExitCode -in @(0, 1641, 3010)) {
@@ -480,6 +508,10 @@ function Initialize-GitLfs {
         },
         [string]$LogPath
     )
+    $resolvedLogPath = $null
+    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
+        $resolvedLogPath = Resolve-BootstrapLogPath -Path $LogPath
+    }
     if (-not $GitLfsAvailable) {
         return New-InstallResult `
             -Name 'Git LFS initialization' `
@@ -494,8 +526,8 @@ function Initialize-GitLfs {
     }
 
     $result = & $Runner 'git.exe' @('lfs', 'install')
-    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
-        Write-BootstrapLog -Path $LogPath `
+    if ($null -ne $resolvedLogPath) {
+        Write-BootstrapLog -Path $resolvedLogPath `
             -Message "$($result.Command) => $($result.ExitCode)"
     }
     if ($result.ExitCode -eq 0) {
@@ -523,6 +555,10 @@ function Install-PinnedRustToolchain {
         },
         [string]$LogPath
     )
+    $resolvedLogPath = $null
+    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
+        $resolvedLogPath = Resolve-BootstrapLogPath -Path $LogPath
+    }
     if (-not $RustupAvailable) {
         return New-InstallResult `
             -Name 'Pinned Rust toolchain' `
@@ -531,6 +567,13 @@ function Install-PinnedRustToolchain {
     }
 
     $pinned = Get-PinnedToolchain $RepositoryRoot
+    if (-not $PSCmdlet.ShouldProcess($pinned, 'Install Rust toolchain and components')) {
+        return New-InstallResult `
+            -Name 'Pinned Rust toolchain' `
+            -Status 'SKIPPED' `
+            -Detail 'WhatIf'
+    }
+
     $listed = & $Runner 'rustup.exe' @('toolchain', 'list')
     if ($listed.ExitCode -ne 0) {
         $detail = (($listed.Output -join ' ').Trim())
@@ -540,7 +583,8 @@ function Install-PinnedRustToolchain {
         return New-InstallResult -Name 'Pinned Rust toolchain' -Status 'FAILED' -Detail $detail
     }
 
-    $toolchainPresent = (($listed.Output -join "`n") -match [regex]::Escape($pinned))
+    $toolchainPresent = Test-PinnedRustToolchainListed -Pinned $pinned -Entries @($listed.Output)
+    $missingComponents = @('rustfmt', 'clippy')
     if ($toolchainPresent) {
         $components = & $Runner 'rustup.exe' @(
             'component', 'list',
@@ -556,8 +600,12 @@ function Install-PinnedRustToolchain {
         }
 
         $componentText = ($components.Output -join "`n")
-        $ready = ($componentText -match 'rustfmt') -and ($componentText -match 'clippy')
-        if ($ready) {
+        $missingComponents = @(
+            @('rustfmt', 'clippy') | Where-Object {
+                $componentText -notmatch "(?m)^$([regex]::Escape($_))(?:-|$)"
+            }
+        )
+        if ($missingComponents.Count -eq 0) {
             return New-InstallResult `
                 -Name 'Pinned Rust toolchain' `
                 -Status 'ALREADY PRESENT' `
@@ -565,33 +613,36 @@ function Install-PinnedRustToolchain {
         }
     }
 
-    if (-not $PSCmdlet.ShouldProcess($pinned, 'Install Rust toolchain and components')) {
-        return New-InstallResult `
-            -Name 'Pinned Rust toolchain' `
-            -Status 'SKIPPED' `
-            -Detail 'WhatIf'
+    if ($toolchainPresent) {
+        $arguments = @('component', 'add', '--toolchain', $pinned) + $missingComponents
+        $successDetail = "$pinned; added $($missingComponents -join ', ')"
+        $failureDescription = 'component add'
+    } else {
+        $arguments = @(
+            'toolchain', 'install', $pinned,
+            '--profile', 'minimal',
+            '--component', 'rustfmt',
+            '--component', 'clippy'
+        )
+        $successDetail = $pinned
+        $failureDescription = 'toolchain install'
     }
 
-    $result = & $Runner 'rustup.exe' @(
-        'toolchain', 'install', $pinned,
-        '--profile', 'minimal',
-        '--component', 'rustfmt',
-        '--component', 'clippy'
-    )
-    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
-        Write-BootstrapLog -Path $LogPath `
+    $result = & $Runner 'rustup.exe' $arguments
+    if ($null -ne $resolvedLogPath) {
+        Write-BootstrapLog -Path $resolvedLogPath `
             -Message "$($result.Command) => $($result.ExitCode)"
     }
     if ($result.ExitCode -eq 0) {
         return New-InstallResult `
             -Name 'Pinned Rust toolchain' `
             -Status 'INSTALLED' `
-            -Detail $pinned
+            -Detail $successDetail
     }
 
     $detail = (($result.Output -join ' ').Trim())
     if ([string]::IsNullOrWhiteSpace($detail)) {
-        $detail = "rustup.exe toolchain install exited with code $($result.ExitCode)."
+        $detail = "rustup.exe $failureDescription exited with code $($result.ExitCode)."
     }
     New-InstallResult -Name 'Pinned Rust toolchain' -Status 'FAILED' -Detail $detail
 }

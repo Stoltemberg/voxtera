@@ -30,6 +30,22 @@ Test-Case 'package detection resolves the manifest command without executing it'
     Assert-Equal 'git.exe' $resolvedCommands[0]
 }
 
+Test-Case 'bootstrap log path resolution is pure and canonical' {
+    $relativeDirectory = "VelorenDev\logs\pure-$([guid]::NewGuid())"
+    $directory = Join-Path $env:LOCALAPPDATA $relativeDirectory
+    $path = Join-Path $directory '..\canonical.log'
+    try {
+        $resolved = Resolve-BootstrapLogPath -Path $path
+        $expected = [System.IO.Path]::GetFullPath(
+            (Join-Path $env:LOCALAPPDATA 'VelorenDev\logs\canonical.log')
+        )
+        Assert-Equal $expected $resolved
+        Assert-Equal $false (Test-Path -LiteralPath $directory)
+    } finally {
+        Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 Test-Case 'Winget installer retries once and succeeds' {
     $calls = New-Object System.Collections.Generic.List[object]
     $runner = {
@@ -140,15 +156,19 @@ Test-Case 'Winget runner errors propagate' {
 
 Test-Case 'Winget installer log remains contained under bootstrap log root' {
     $outsidePath = Join-Path $env:TEMP ("veloren-installer-{0}.log" -f [guid]::NewGuid())
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $calls.Add($FilePath) | Out-Null
+        New-FakeCommandResult -ExitCode 0 -Command 'winget install'
+    }.GetNewClosure()
     $caught = $null
     try {
         Install-WingetPackage -Name Git -Package @{
             Id = 'Git.Git'
             WingetArguments = @()
-        } -Detector { param($Package) $false } -Runner {
-            param($FilePath, $Arguments)
-            New-FakeCommandResult -ExitCode 0 -Command 'winget install'
-        } -LogPath $outsidePath -Confirm:$false | Out-Null
+        } -Detector { param($Package) $false } -Runner $runner `
+            -LogPath $outsidePath -WhatIf | Out-Null
     } catch {
         $caught = $_.Exception
     } finally {
@@ -156,6 +176,22 @@ Test-Case 'Winget installer log remains contained under bootstrap log root' {
     }
     Assert-True ($null -ne $caught)
     Assert-Match 'must stay under' $caught.Message
+    Assert-Equal 0 $calls.Count
+}
+
+Test-Case 'Winget WhatIf skips without a runner call' {
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $calls.Add($FilePath) | Out-Null
+        throw 'must not run'
+    }.GetNewClosure()
+    $result = Install-WingetPackage -Name Git -Package @{
+        Id = 'Git.Git'
+        WingetArguments = @()
+    } -Detector { param($Package) $false } -Runner $runner -WhatIf
+    Assert-Equal 'SKIPPED' $result.Status
+    Assert-Equal 0 $calls.Count
 }
 
 Test-Case 'unavailable Git LFS initialization is skipped without a runner call' {
@@ -209,6 +245,38 @@ Test-Case 'Git LFS runner errors propagate' {
     Assert-Match 'unexpected Git LFS runner error' $caught.Message
 }
 
+Test-Case 'Git LFS rejects an invalid log path before its runner call' {
+    $outsidePath = Join-Path $env:TEMP ("veloren-git-lfs-{0}.log" -f [guid]::NewGuid())
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $calls.Add($FilePath) | Out-Null
+        New-FakeCommandResult -ExitCode 0
+    }.GetNewClosure()
+    $caught = $null
+    try {
+        Initialize-GitLfs -GitLfsAvailable:$true -Runner $runner `
+            -LogPath $outsidePath -WhatIf | Out-Null
+    } catch {
+        $caught = $_.Exception
+    }
+    Assert-True ($null -ne $caught)
+    Assert-Match 'must stay under' $caught.Message
+    Assert-Equal 0 $calls.Count
+}
+
+Test-Case 'Git LFS WhatIf skips without a runner call' {
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $calls.Add($FilePath) | Out-Null
+        throw 'must not run'
+    }.GetNewClosure()
+    $result = Initialize-GitLfs -GitLfsAvailable:$true -Runner $runner -WhatIf
+    Assert-Equal 'SKIPPED' $result.Status
+    Assert-Equal 0 $calls.Count
+}
+
 Test-Case 'failed prerequisite produces skipped Rust toolchain' {
     $calls = 0
     $runner = {
@@ -245,6 +313,26 @@ Test-Case 'ready pinned Rust toolchain is not reinstalled' {
         -RustupAvailable:$true -Runner $runner -Confirm:$false
     Assert-Equal 'ALREADY PRESENT' $result.Status
     Assert-Equal 2 $calls.Count
+}
+
+Test-Case 'Rust toolchain collision does not satisfy the exact pin' {
+    $root = Get-RepositoryRoot
+    $pinned = Get-PinnedToolchain $root
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $call = $Arguments -join ' '
+        $calls.Add($call) | Out-Null
+        if ($call -eq 'toolchain list') {
+            return New-FakeCommandResult -ExitCode 0 -Output @("$pinned-custom (active)")
+        }
+        New-FakeCommandResult -ExitCode 0 -Command "$FilePath $call"
+    }.GetNewClosure()
+    $result = Install-PinnedRustToolchain -RepositoryRoot $root `
+        -RustupAvailable:$true -Runner $runner -Confirm:$false
+    Assert-Equal 'INSTALLED' $result.Status
+    Assert-Equal 2 $calls.Count
+    Assert-Equal "toolchain install $pinned --profile minimal --component rustfmt --component clippy" $calls[1]
 }
 
 Test-Case 'failed Rust toolchain query is reported without installation' {
@@ -300,6 +388,66 @@ Test-Case 'Rust installer pins toolchain components without changing global defa
     Assert-Equal 2 $calls.Count
     Assert-Equal "toolchain install $pinned --profile minimal --component rustfmt --component clippy" $calls[1]
     Assert-True (-not (($calls -join "`n") -match '(^|\s)default(\s|$)'))
+}
+
+Test-Case 'Rust adds only a missing pinned component without changing global default' {
+    $root = Get-RepositoryRoot
+    $pinned = Get-PinnedToolchain $root
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $call = $Arguments -join ' '
+        $calls.Add($call) | Out-Null
+        if ($call -eq 'toolchain list') {
+            return New-FakeCommandResult -ExitCode 0 `
+                -Output @("$pinned-x86_64-pc-windows-msvc (active)")
+        }
+        if ($call -eq "component list --toolchain $pinned --installed") {
+            return New-FakeCommandResult -ExitCode 0 `
+                -Output @('rustfmt-x86_64-pc-windows-msvc (installed)')
+        }
+        New-FakeCommandResult -ExitCode 0 -Command "$FilePath $call"
+    }.GetNewClosure()
+    $result = Install-PinnedRustToolchain -RepositoryRoot $root `
+        -RustupAvailable:$true -Runner $runner -Confirm:$false
+    Assert-Equal 'INSTALLED' $result.Status
+    Assert-Equal 3 $calls.Count
+    Assert-Equal "component add --toolchain $pinned clippy" $calls[2]
+    Assert-True (-not (($calls -join "`n") -match '(^|\s)default(\s|$)'))
+}
+
+Test-Case 'Rust rejects an invalid log path before its runner call' {
+    $outsidePath = Join-Path $env:TEMP ("veloren-rust-{0}.log" -f [guid]::NewGuid())
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $calls.Add($FilePath) | Out-Null
+        New-FakeCommandResult -ExitCode 0
+    }.GetNewClosure()
+    $caught = $null
+    try {
+        Install-PinnedRustToolchain -RepositoryRoot (Get-RepositoryRoot) `
+            -RustupAvailable:$true -Runner $runner -LogPath $outsidePath `
+            -WhatIf | Out-Null
+    } catch {
+        $caught = $_.Exception
+    }
+    Assert-True ($null -ne $caught)
+    Assert-Match 'must stay under' $caught.Message
+    Assert-Equal 0 $calls.Count
+}
+
+Test-Case 'Rust WhatIf skips without a runner call' {
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $calls.Add($FilePath) | Out-Null
+        throw 'must not run'
+    }.GetNewClosure()
+    $result = Install-PinnedRustToolchain -RepositoryRoot (Get-RepositoryRoot) `
+        -RustupAvailable:$true -Runner $runner -WhatIf
+    Assert-Equal 'SKIPPED' $result.Status
+    Assert-Equal 0 $calls.Count
 }
 
 Test-Case 'failed Rust installation checks its external exit code' {
