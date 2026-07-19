@@ -205,3 +205,17 @@ Test-Case 'doctor JSON is one valid document' {
     Assert-True ($document.Checks.Count -gt 0)
     Assert-True ($null -ne $document.Healthy)
 }
+
+Test-Case 'production scripts never compile or run Veloren' {
+    $productionFiles = @(
+        (Join-Path $windowsRoot 'bootstrap.ps1'),
+        (Join-Path $windowsRoot 'doctor.ps1'),
+        (Join-Path $windowsRoot 'Bootstrap.Common.psm1')
+    )
+    foreach ($file in $productionFiles) {
+        $content = Get-Content -LiteralPath $file -Raw
+        Assert-True ($content -notmatch '(?im)\bcargo\s+(build|check|test|run)\b') "$file invokes Cargo."
+        Assert-True ($content -notmatch '(?im)\bveloren-voxygen(?:\.exe)?\b') "$file launches Voxygen."
+        Assert-True ($content -notmatch '(?im)\bveloren-server-cli(?:\.exe)?\b') "$file launches the server."
+    }
+}
