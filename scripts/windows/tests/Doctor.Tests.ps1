@@ -143,6 +143,76 @@ Test-Case 'manifest contains exact package IDs' {
     Assert-Equal 'Rustup' $manifest.Order[-1]
 }
 
+Test-Case 'Git LFS configuration requires all effective filter values' {
+    $expected = @{
+        'filter.lfs.clean' = 'git-lfs clean -- %f'
+        'filter.lfs.smudge' = 'git-lfs smudge -- %f'
+        'filter.lfs.process' = 'git-lfs filter-process'
+        'filter.lfs.required' = 'true'
+    }
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $key = $Arguments[-1]
+        $calls.Add("$FilePath $($Arguments -join ' ')") | Out-Null
+        [pscustomobject]@{
+            ExitCode = 0
+            Output = @($expected[$key])
+            Command = "$FilePath $($Arguments -join ' ')"
+        }
+    }.GetNewClosure()
+
+    $result = Get-GitLfsConfigCheck `
+        -CommandResolver {
+            [pscustomobject]@{ Source = 'git.exe' }
+        } `
+        -Runner $runner
+
+    Assert-Equal 'PASS' $result.Status
+    Assert-Equal 4 $calls.Count
+    Assert-True ($calls -contains 'git.exe config --get filter.lfs.clean')
+    Assert-True ($calls -contains 'git.exe config --get filter.lfs.smudge')
+    Assert-True ($calls -contains 'git.exe config --get filter.lfs.process')
+    Assert-True ($calls -contains 'git.exe config --get filter.lfs.required')
+}
+
+Test-Case 'Git LFS configuration fails for an ineffective filter value' {
+    $runner = {
+        param($FilePath, $Arguments)
+        $values = @{
+            'filter.lfs.clean' = 'git-lfs clean -- %f'
+            'filter.lfs.smudge' = 'git-lfs smudge -- %f'
+            'filter.lfs.process' = 'not-git-lfs'
+            'filter.lfs.required' = 'true'
+        }
+        [pscustomobject]@{
+            ExitCode = 0
+            Output = @($values[$Arguments[-1]])
+            Command = "$FilePath $($Arguments -join ' ')"
+        }
+    }
+    $result = Get-GitLfsConfigCheck `
+        -CommandResolver {
+            [pscustomobject]@{ Source = 'git.exe' }
+        } `
+        -Runner $runner
+    Assert-Equal 'FAIL' $result.Status
+    Assert-Match 'filter.lfs.process' $result.Detail
+}
+
+Test-Case 'Git LFS configuration reports missing Git without invoking a runner' {
+    $calls = 0
+    $result = Get-GitLfsConfigCheck `
+        -CommandResolver { $null } `
+        -Runner {
+            $calls++
+            throw 'must not run'
+        }.GetNewClosure()
+    Assert-Equal 'FAIL' $result.Status
+    Assert-Match 'Git is unavailable' $result.Detail
+    Assert-Equal 0 $calls
+}
+
 Test-Case 'doctor aggregates injected probes in order' {
     $probes = [ordered]@{
         Git = { New-CheckResult Git PASS 'present' }

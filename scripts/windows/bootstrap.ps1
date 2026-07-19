@@ -52,7 +52,7 @@ try {
     $manifest = Import-PowerShellDataFile (Join-Path $PSScriptRoot 'packages.psd1')
     $packageInstaller = {
         param($Name, $Package, $Detector, $Runner)
-        Install-WingetPackage `
+        Install-ManifestPackage `
             -Name $Name `
             -Package $Package `
             -Detector $Detector `

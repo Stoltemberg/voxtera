@@ -98,6 +98,94 @@ Test-Case 'workflow continues after independent package failure' {
     Assert-Equal 'INSTALLED' (($results | Where-Object Name -eq Ninja).Status)
 }
 
+Test-Case 'workflow refreshes PATH before initial package detection' {
+    $calls = New-Object System.Collections.Generic.List[string]
+    $workflow = Invoke-BootstrapWorkflow `
+        -Manifest @{
+            Order = @('Git')
+            Packages = @{
+                Git = @{ Id = 'Git.Git'; DependsOn = @() }
+            }
+        } `
+        -PackageInstaller {
+            param($Name, $Package)
+            $calls.Add("package:$Name") | Out-Null
+            New-InstallResult $Name 'ALREADY PRESENT' $Package.Id
+        }.GetNewClosure() `
+        -GitLfsInstaller {
+            New-InstallResult 'Git LFS initialization' INSTALLED ok
+        } `
+        -RustInstaller {
+            New-InstallResult 'Pinned Rust toolchain' INSTALLED ok
+        } `
+        -PathRefresher {
+            $calls.Add('path') | Out-Null
+        }.GetNewClosure() `
+        -Doctor { New-CheckResult 'Injected doctor' PASS ok }
+
+    Assert-Equal 'path,package:Git,path,path,path' ($calls -join ',')
+}
+
+Test-Case 'workflow skips Git LFS initialization when Git or Git LFS failed' {
+    foreach ($failedName in @('Git', 'GitLfs')) {
+        $gitLfsCalls = 0
+        $workflow = Invoke-BootstrapWorkflow `
+            -Manifest $manifest `
+            -PackageInstaller {
+                param($Name, $Package)
+                if ($Name -eq $failedName) {
+                    New-InstallResult $Name FAILED simulated
+                } else {
+                    New-InstallResult $Name INSTALLED $Package.Id
+                }
+            }.GetNewClosure() `
+            -GitLfsInstaller {
+                $gitLfsCalls++
+                throw 'must not run'
+            }.GetNewClosure() `
+            -RustInstaller {
+                New-InstallResult 'Pinned Rust toolchain' INSTALLED ok
+            } `
+            -PathRefresher { } `
+            -Doctor { New-CheckResult 'Injected doctor' FAIL incomplete }
+        $result = $workflow.InstallResults |
+            Where-Object Name -eq 'Git LFS initialization'
+        Assert-Equal 0 $gitLfsCalls
+        Assert-Equal 'SKIPPED' $result.Status
+        Assert-Match $failedName $result.Detail
+    }
+}
+
+Test-Case 'workflow skips Rust setup when Visual Studio or Rustup failed' {
+    foreach ($failedName in @('VisualStudio', 'Rustup')) {
+        $rustCalls = 0
+        $workflow = Invoke-BootstrapWorkflow `
+            -Manifest $manifest `
+            -PackageInstaller {
+                param($Name, $Package)
+                if ($Name -eq $failedName) {
+                    New-InstallResult $Name FAILED simulated
+                } else {
+                    New-InstallResult $Name INSTALLED $Package.Id
+                }
+            }.GetNewClosure() `
+            -GitLfsInstaller {
+                New-InstallResult 'Git LFS initialization' INSTALLED ok
+            } `
+            -RustInstaller {
+                $rustCalls++
+                throw 'must not run'
+            }.GetNewClosure() `
+            -PathRefresher { } `
+            -Doctor { New-CheckResult 'Injected doctor' FAIL incomplete }
+        $result = $workflow.InstallResults |
+            Where-Object Name -eq 'Pinned Rust toolchain'
+        Assert-Equal 0 $rustCalls
+        Assert-Equal 'SKIPPED' $result.Status
+        Assert-Match $failedName $result.Detail
+    }
+}
+
 Test-Case 'workflow skips failed dependencies without calling their installer' {
     $orderedManifest = @{
         Order = @('Base', 'Dependent', 'Independent')

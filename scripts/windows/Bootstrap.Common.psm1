@@ -204,13 +204,66 @@ function Get-CommandPresenceCheck {
     New-CheckResult $Name PASS $path
 }
 
+function Resolve-VswherePath {
+    Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+}
+
+function Get-VisualStudioInstallationPath {
+    param(
+        [string]$VswherePath,
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        }
+    )
+    if ([string]::IsNullOrWhiteSpace($VswherePath)) {
+        $VswherePath = Resolve-VswherePath
+        if (-not (Test-Path -LiteralPath $VswherePath)) {
+            return $null
+        }
+    }
+    $result = & $Runner $VswherePath @(
+        '-latest',
+        '-products', 'Microsoft.VisualStudio.Product.BuildTools',
+        '-version', '[17.0,18.0)',
+        '-property', 'installationPath'
+    )
+    if ($result.ExitCode -ne 0) {
+        $detail = (($result.Output -join ' ').Trim())
+        if ([string]::IsNullOrWhiteSpace($detail)) {
+            $detail = "vswhere.exe exited with code $($result.ExitCode)."
+        }
+        throw "Unable to query Visual Studio Build Tools identity: $detail"
+    }
+    $path = [string]($result.Output | Where-Object {
+        -not [string]::IsNullOrWhiteSpace([string]$_)
+    } | Select-Object -First 1)
+    if ([string]::IsNullOrWhiteSpace($path) -or
+        -not [System.IO.Path]::IsPathRooted($path)) {
+        return $null
+    }
+    $path.Trim()
+}
+
 function Get-VisualStudioCheck {
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere)) {
+    param(
+        [string]$VswherePath,
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        }
+    )
+    if ([string]::IsNullOrWhiteSpace($VswherePath)) {
+        $VswherePath = Resolve-VswherePath
+    }
+    if (-not (Test-Path -LiteralPath $VswherePath) -and
+        $PSBoundParameters.ContainsKey('VswherePath') -eq $false) {
         return New-CheckResult 'Visual Studio Build Tools' FAIL 'vswhere.exe is missing.'
     }
-    $result = Invoke-ExternalCommand $vswhere @(
-        '-latest', '-products', '*',
+    $result = & $Runner $VswherePath @(
+        '-latest',
+        '-products', 'Microsoft.VisualStudio.Product.BuildTools',
+        '-version', '[17.0,18.0)',
         '-requires', 'Microsoft.VisualStudio.Workload.VCTools',
         '-property', 'installationPath'
     )
@@ -333,23 +386,25 @@ function Get-DefaultDoctorProbes {
         [scriptblock]$CommandResolver = {
             param($CommandName)
             Get-Command $CommandName -ErrorAction SilentlyContinue
+        },
+        [scriptblock]$CommandRunner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
         }
     )
     $root = $RepositoryRoot
     $resolver = $CommandResolver
+    $runner = $CommandRunner
     [ordered]@{
         Platform = { Get-PlatformCheck }
         Winget = { Get-CommandCheck Winget winget.exe @('--version') }
         Git = { Get-CommandCheck Git git.exe @('--version') }
         GitLfs = { Get-CommandCheck 'Git LFS' git-lfs.exe @('--version') }
-        GitLfsConfig = {
-            if ($null -eq (Get-Command git.exe -ErrorAction SilentlyContinue)) {
-                return New-CheckResult 'Git LFS configuration' FAIL 'Git is unavailable.'
-            }
-            $result = Invoke-ExternalCommand 'git.exe' @('lfs', 'env')
-            New-CheckResult 'Git LFS configuration' $(if ($result.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }) `
-                (($result.Output -join ' ').Trim())
-        }
+        GitLfsConfig = ({
+            Get-GitLfsConfigCheck `
+                -CommandResolver $resolver `
+                -Runner $runner
+        }).GetNewClosure()
         Assets = ({ Get-AssetCheck $root }).GetNewClosure()
         VisualStudio = { Get-VisualStudioCheck }
         WindowsSdk = { Get-WindowsSdkCheck }
@@ -365,6 +420,57 @@ function Get-DefaultDoctorProbes {
                 $(if (Test-PendingRestart) { 'Windows restart is pending.' } else { 'No restart is pending.' })
         }
     }
+}
+
+function Get-GitLfsConfigCheck {
+    param(
+        [scriptblock]$CommandResolver = {
+            param($CommandName)
+            Get-Command $CommandName -ErrorAction SilentlyContinue
+        },
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        }
+    )
+    $git = & $CommandResolver 'git.exe'
+    if ($null -eq $git -or
+        [string]::IsNullOrWhiteSpace([string]$git.Source)) {
+        return New-CheckResult `
+            -Name 'Git LFS configuration' `
+            -Status FAIL `
+            -Detail 'Git is unavailable.'
+    }
+    $gitPath = [string]$git.Source
+    $expected = [ordered]@{
+        'filter.lfs.clean' = 'git-lfs clean -- %f'
+        'filter.lfs.smudge' = 'git-lfs smudge -- %f'
+        'filter.lfs.process' = 'git-lfs filter-process'
+        'filter.lfs.required' = 'true'
+    }
+    $failures = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in $expected.GetEnumerator()) {
+        $result = & $Runner $gitPath @('config', '--get', $entry.Key)
+        $actual = (($result.Output -join "`n").Trim())
+        if ($result.ExitCode -ne 0 -or
+            -not [string]::Equals(
+                $actual,
+                $entry.Value,
+                [System.StringComparison]::OrdinalIgnoreCase
+            )) {
+            $failures.Add($entry.Key) | Out-Null
+        }
+    }
+    if ($failures.Count -gt 0) {
+        return New-CheckResult `
+            -Name 'Git LFS configuration' `
+            -Status FAIL `
+            -Detail "Missing or ineffective values: $($failures -join ', ')."
+    }
+    New-CheckResult `
+        -Name 'Git LFS configuration' `
+        -Status PASS `
+        -Detail 'Effective Git LFS filters are configured.'
 }
 
 function Get-DoctorReport {
@@ -412,11 +518,45 @@ function Test-PackagePresent {
             param($Command)
             Get-Command $Command -ErrorAction SilentlyContinue
         },
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        },
         [scriptblock]$VisualStudioCheck = { Get-VisualStudioCheck },
         [scriptblock]$WindowsSdkCheck = { Get-WindowsSdkCheck }
     )
     if (-not [string]::IsNullOrWhiteSpace($Package.Command)) {
-        return $null -ne (& $CommandResolver $Package.Command)
+        $resolved = & $CommandResolver $Package.Command
+        if ($null -eq $resolved) {
+            return $false
+        }
+        $path = [string]$resolved.Source
+        if ([string]::IsNullOrWhiteSpace($path) -or
+            $path -match '(?i)[\\/]Microsoft[\\/]WindowsApps[\\/]') {
+            return $false
+        }
+        $versionArguments = if ($Package.ContainsKey('VersionArguments')) {
+            @($Package.VersionArguments)
+        } else {
+            @('--version')
+        }
+        try {
+            $result = & $Runner $path $versionArguments
+        } catch {
+            return $false
+        }
+        if ($result.ExitCode -ne 0) {
+            return $false
+        }
+        $version = (($result.Output -join "`n").Trim())
+        if ([string]::IsNullOrWhiteSpace($version)) {
+            return $false
+        }
+        if ($Package.ContainsKey('VersionPattern') -and
+            $version -notmatch $Package.VersionPattern) {
+            return $false
+        }
+        return $true
     }
     if ($Package.Id -eq 'Microsoft.VisualStudio.2022.BuildTools') {
         return (& $VisualStudioCheck).Status -eq 'PASS' -and
@@ -473,6 +613,8 @@ function Install-WingetPackage {
         'install',
         '--id', $Package.Id,
         '--exact',
+        '--source', 'winget',
+        '--no-upgrade',
         '--accept-package-agreements',
         '--accept-source-agreements',
         '--disable-interactivity'
@@ -484,7 +626,13 @@ function Install-WingetPackage {
             Write-BootstrapLog -Path $resolvedLogPath `
                 -Message "$($result.Command) => $($result.ExitCode)"
         }
-        if ($result.ExitCode -in @(0, 1641, 3010)) {
+        if ($result.ExitCode -eq 1641) {
+            return New-InstallResult `
+                -Name $Name `
+                -Status 'FAILED' `
+                -Detail "$($Package.Id); restart initiated unexpectedly; automatic reboot is forbidden."
+        }
+        if ($result.ExitCode -in @(0, 3010)) {
             $detail = if ($result.ExitCode -eq 0) {
                 $Package.Id
             } else {
@@ -499,6 +647,154 @@ function Install-WingetPackage {
         $detail = "winget.exe exited with code $($result.ExitCode)."
     }
     New-InstallResult -Name $Name -Status 'FAILED' -Detail $detail
+}
+
+function Install-VisualStudioBuildTools {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)][hashtable]$Package,
+        [scriptblock]$InstallationPathResolver = {
+            Get-VisualStudioInstallationPath
+        },
+        [scriptblock]$VisualStudioCheck = { Get-VisualStudioCheck },
+        [scriptblock]$WindowsSdkCheck = { Get-WindowsSdkCheck },
+        [string]$InstallerPath,
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        },
+        [string]$LogPath
+    )
+    $resolvedLogPath = $null
+    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
+        $resolvedLogPath = Resolve-BootstrapLogPath -Path $LogPath
+    }
+
+    $installationPath = [string](& $InstallationPathResolver)
+    if (-not [string]::IsNullOrWhiteSpace($installationPath)) {
+        if (-not [System.IO.Path]::IsPathRooted($installationPath)) {
+            return New-InstallResult `
+                -Name 'VisualStudio' `
+                -Status FAILED `
+                -Detail 'Visual Studio installation path is not absolute.'
+        }
+        $workloadReady = (& $VisualStudioCheck).Status -eq 'PASS'
+        $sdkReady = (& $WindowsSdkCheck).Status -eq 'PASS'
+        if ($workloadReady -and $sdkReady) {
+            return New-InstallResult `
+                -Name 'VisualStudio' `
+                -Status 'ALREADY PRESENT' `
+                -Detail $installationPath
+        }
+    }
+
+    $action = if ([string]::IsNullOrWhiteSpace($installationPath)) {
+        'Install Visual Studio Build Tools'
+    } else {
+        'Add missing Visual Studio workload components'
+    }
+    $target = if ([string]::IsNullOrWhiteSpace($installationPath)) {
+        $Package.Id
+    } else {
+        $installationPath
+    }
+    if (-not $PSCmdlet.ShouldProcess($target, $action)) {
+        return New-InstallResult `
+            -Name 'VisualStudio' `
+            -Status 'SKIPPED' `
+            -Detail 'WhatIf'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($installationPath)) {
+        return Install-WingetPackage `
+            -Name 'VisualStudio' `
+            -Package $Package `
+            -Detector { param($Value) $false } `
+            -Runner $Runner `
+            -LogPath $resolvedLogPath `
+            -Confirm:$false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($InstallerPath)) {
+        $InstallerPath = Join-Path ${env:ProgramFiles(x86)} `
+            'Microsoft Visual Studio\Installer\setup.exe'
+        if (-not (Test-Path -LiteralPath $InstallerPath)) {
+            return New-InstallResult `
+                -Name 'VisualStudio' `
+                -Status FAILED `
+                -Detail 'Visual Studio Installer setup.exe is missing.'
+        }
+    }
+    $arguments = @(
+        'modify',
+        '--installPath', $installationPath,
+        '--add', 'Microsoft.VisualStudio.Workload.VCTools',
+        '--includeRecommended',
+        '--passive',
+        '--norestart'
+    )
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
+        $result = & $Runner $InstallerPath $arguments
+        if ($null -ne $resolvedLogPath) {
+            Write-BootstrapLog -Path $resolvedLogPath `
+                -Message "$($result.Command) => $($result.ExitCode)"
+        }
+        if ($result.ExitCode -eq 1641) {
+            return New-InstallResult `
+                -Name 'VisualStudio' `
+                -Status FAILED `
+                -Detail 'Visual Studio Installer initiated a restart unexpectedly; automatic reboot is forbidden.'
+        }
+        if ($result.ExitCode -in @(0, 3010)) {
+            $detail = if ($result.ExitCode -eq 3010) {
+                "$installationPath; restart required"
+            } else {
+                $installationPath
+            }
+            return New-InstallResult `
+                -Name 'VisualStudio' `
+                -Status INSTALLED `
+                -Detail $detail
+        }
+    }
+
+    $detail = (($result.Output -join ' ').Trim())
+    if ([string]::IsNullOrWhiteSpace($detail)) {
+        $detail = "Visual Studio Installer exited with code $($result.ExitCode)."
+    }
+    New-InstallResult -Name 'VisualStudio' -Status FAILED -Detail $detail
+}
+
+function Install-ManifestPackage {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][hashtable]$Package,
+        [Parameter(Mandatory)][scriptblock]$Detector,
+        [Parameter(Mandatory)][scriptblock]$Runner,
+        [string]$LogPath,
+        [scriptblock]$VisualStudioInstaller = {
+            param($Value, $CommandRunner, $BootstrapLogPath)
+            Install-VisualStudioBuildTools `
+                -Package $Value `
+                -Runner $CommandRunner `
+                -LogPath $BootstrapLogPath `
+                -Confirm:$false
+        },
+        [scriptblock]$WingetInstaller = {
+            param($PackageName, $Value, $PackageDetector, $CommandRunner, $BootstrapLogPath)
+            Install-WingetPackage `
+                -Name $PackageName `
+                -Package $Value `
+                -Detector $PackageDetector `
+                -Runner $CommandRunner `
+                -LogPath $BootstrapLogPath `
+                -Confirm:$false
+        }
+    )
+    if ($Package.Id -eq 'Microsoft.VisualStudio.2022.BuildTools') {
+        return & $VisualStudioInstaller $Package $Runner $LogPath
+    }
+    & $WingetInstaller $Name $Package $Detector $Runner $LogPath
 }
 
 function Initialize-GitLfs {
@@ -715,12 +1011,11 @@ function Invoke-BootstrapWorkflow {
         },
         [scriptblock]$PackageInstaller = {
             param($Name, $Package, $Detector, $Runner)
-            Install-WingetPackage `
+            Install-ManifestPackage `
                 -Name $Name `
                 -Package $Package `
                 -Detector $Detector `
-                -Runner $Runner `
-                -Confirm:$false
+                -Runner $Runner
         },
         [scriptblock]$GitLfsRunner = {
             param($FilePath, $Arguments)
@@ -766,6 +1061,7 @@ function Invoke-BootstrapWorkflow {
         ) | Out-Null
     } else {
         $resultsByName = @{}
+        & $PathRefresher | Out-Null
         foreach ($name in $Manifest.Order) {
             $package = $Manifest.Packages[$name]
             $blockedDependency = @(
@@ -795,18 +1091,42 @@ function Invoke-BootstrapWorkflow {
             & $PathRefresher | Out-Null
         }
 
-        $gitLfsOutput = @(& $GitLfsInstaller $GitLfsRunner)
-        if ($gitLfsOutput.Count -ne 1) {
-            throw "Git LFS installer returned $($gitLfsOutput.Count) results; expected exactly one."
+        $gitLfsDependency = @('Git', 'GitLfs') | Where-Object {
+            $resultsByName.ContainsKey($_) -and
+            $resultsByName[$_].Status -notin @('INSTALLED', 'ALREADY PRESENT')
+        } | Select-Object -First 1
+        if ($null -ne $gitLfsDependency) {
+            $gitLfsResult = New-InstallResult `
+                -Name 'Git LFS initialization' `
+                -Status SKIPPED `
+                -Detail "Dependency failed: $gitLfsDependency"
+        } else {
+            $gitLfsOutput = @(& $GitLfsInstaller $GitLfsRunner)
+            if ($gitLfsOutput.Count -ne 1) {
+                throw "Git LFS installer returned $($gitLfsOutput.Count) results; expected exactly one."
+            }
+            $gitLfsResult = $gitLfsOutput[0]
         }
-        $installResults.Add($gitLfsOutput[0]) | Out-Null
+        $installResults.Add($gitLfsResult) | Out-Null
         & $PathRefresher | Out-Null
 
-        $rustOutput = @(& $RustInstaller $RustRunner)
-        if ($rustOutput.Count -ne 1) {
-            throw "Rust installer returned $($rustOutput.Count) results; expected exactly one."
+        $rustDependency = @('VisualStudio', 'Rustup') | Where-Object {
+            $resultsByName.ContainsKey($_) -and
+            $resultsByName[$_].Status -notin @('INSTALLED', 'ALREADY PRESENT')
+        } | Select-Object -First 1
+        if ($null -ne $rustDependency) {
+            $rustResult = New-InstallResult `
+                -Name 'Pinned Rust toolchain' `
+                -Status SKIPPED `
+                -Detail "Dependency failed: $rustDependency"
+        } else {
+            $rustOutput = @(& $RustInstaller $RustRunner)
+            if ($rustOutput.Count -ne 1) {
+                throw "Rust installer returned $($rustOutput.Count) results; expected exactly one."
+            }
+            $rustResult = $rustOutput[0]
         }
-        $installResults.Add($rustOutput[0]) | Out-Null
+        $installResults.Add($rustResult) | Out-Null
         & $PathRefresher | Out-Null
     }
 
