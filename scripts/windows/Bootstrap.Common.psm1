@@ -89,6 +89,80 @@ function Get-PinnedToolchain {
     $line.Trim()
 }
 
+function Get-PlatformClassification {
+    param(
+        [Parameter(Mandatory)][PlatformID]$Platform,
+        [Parameter(Mandatory)][bool]$Is64BitOperatingSystem,
+        [Parameter(Mandatory)][int]$MajorVersion,
+        [Parameter(Mandatory)][int]$ProductType
+    )
+    if ($Platform -ne [PlatformID]::Win32NT) {
+        return [pscustomobject][ordered]@{
+            Supported = $false
+            Detail = 'Only Windows is supported.'
+        }
+    }
+    if (-not $Is64BitOperatingSystem) {
+        return [pscustomobject][ordered]@{
+            Supported = $false
+            Detail = 'Only 64-bit Windows is supported.'
+        }
+    }
+    if ($MajorVersion -lt 10) {
+        return [pscustomobject][ordered]@{
+            Supported = $false
+            Detail = 'Only Windows 10/11 is supported.'
+        }
+    }
+    if ($ProductType -ne 1) {
+        return [pscustomobject][ordered]@{
+            Supported = $false
+            Detail = 'Only Windows 10/11 client editions are supported; Windows Server is unsupported.'
+        }
+    }
+    [pscustomobject][ordered]@{
+        Supported = $true
+        Detail = '64-bit Windows 10/11 client edition.'
+    }
+}
+
+function Get-PlatformCheck {
+    [CmdletBinding()]
+    param(
+        [PlatformID]$Platform = ([Environment]::OSVersion.Platform),
+        [bool]$Is64BitOperatingSystem = ([Environment]::Is64BitOperatingSystem),
+        [int]$MajorVersion = ([Environment]::OSVersion.Version.Major),
+        [string]$VersionString = ([Environment]::OSVersion.VersionString),
+        [scriptblock]$ProductTypeProvider = {
+            $operatingSystem = Get-CimInstance `
+                -ClassName Win32_OperatingSystem -Property ProductType -ErrorAction Stop |
+                Select-Object -First 1
+            if ($null -ne $operatingSystem) { $operatingSystem.ProductType }
+        }
+    )
+    $baseClassification = Get-PlatformClassification `
+        -Platform $Platform `
+        -Is64BitOperatingSystem $Is64BitOperatingSystem `
+        -MajorVersion $MajorVersion `
+        -ProductType 1
+    if (-not $baseClassification.Supported) {
+        throw [PlatformNotSupportedException]::new($baseClassification.Detail)
+    }
+    $productTypes = @(& $ProductTypeProvider)
+    if ($productTypes.Count -ne 1 -or $null -eq $productTypes[0]) {
+        throw 'Unable to determine the Windows operating system product type.'
+    }
+    $classification = Get-PlatformClassification `
+        -Platform $Platform `
+        -Is64BitOperatingSystem $Is64BitOperatingSystem `
+        -MajorVersion $MajorVersion `
+        -ProductType ([int]$productTypes[0])
+    if (-not $classification.Supported) {
+        throw [PlatformNotSupportedException]::new($classification.Detail)
+    }
+    New-CheckResult Platform PASS $VersionString
+}
+
 function Get-CommandCheck {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -144,40 +218,94 @@ function Get-AssetCheck {
     New-CheckResult Assets PASS 'Asset canary is valid.'
 }
 
-function Get-RustToolchainChecks {
-    param([string]$RepositoryRoot = (Get-RepositoryRoot))
-    $pinned = Get-PinnedToolchain $RepositoryRoot
+function Resolve-RustupPath {
     $rustup = Get-Command rustup.exe -ErrorAction SilentlyContinue
-    if ($null -eq $rustup) {
-        return @(
-            (New-CheckResult Rustup FAIL 'rustup.exe is missing.'),
-            (New-CheckResult 'Pinned Rust toolchain' FAIL "$pinned is not available."),
-            (New-CheckResult 'Rust components' FAIL 'rustfmt and clippy are not available.')
-        )
-    }
-    $toolchains = Invoke-ExternalCommand $rustup.Source @('toolchain', 'list')
-    $hasPinned = ($toolchains.Output -join "`n") -match [regex]::Escape($pinned)
-    $components = if ($hasPinned) {
-        Invoke-ExternalCommand $rustup.Source @('component', 'list', '--toolchain', $pinned, '--installed')
-    } else { $null }
-    $componentText = if ($null -eq $components) { '' } else { $components.Output -join "`n" }
-    @(
-        (New-CheckResult Rustup PASS ((Invoke-ExternalCommand $rustup.Source @('--version')).Output -join ' ')),
-        (New-CheckResult 'Pinned Rust toolchain' $(if ($hasPinned) { 'PASS' } else { 'FAIL' }) $pinned),
-        (New-CheckResult 'Rust components' $(if ($componentText -match 'rustfmt' -and $componentText -match 'clippy') { 'PASS' } else { 'FAIL' }) 'rustfmt, clippy')
+    if ($null -ne $rustup) { $rustup.Source }
+}
+
+function Get-RustupCheck {
+    Get-CommandCheck Rustup rustup.exe @('--version')
+}
+
+function Get-PinnedToolchainCheck {
+    param(
+        [string]$RepositoryRoot = (Get-RepositoryRoot),
+        [string]$RustupPath,
+        [scriptblock]$Runner = {
+            param($Invocation)
+            Invoke-ExternalCommand $Invocation.FilePath $Invocation.Arguments
+        }
     )
+    $pinned = Get-PinnedToolchain $RepositoryRoot
+    if ([string]::IsNullOrWhiteSpace($RustupPath)) {
+        $RustupPath = Resolve-RustupPath
+    }
+    if ([string]::IsNullOrWhiteSpace($RustupPath)) {
+        return New-CheckResult 'Pinned Rust toolchain' FAIL "$pinned is not available because rustup.exe is missing."
+    }
+    $cargo = & $Runner ([pscustomobject][ordered]@{
+        FilePath = $RustupPath
+        Arguments = @('run', $pinned, 'cargo', '--version')
+    })
+    $rustc = & $Runner ([pscustomobject][ordered]@{
+        FilePath = $RustupPath
+        Arguments = @('run', $pinned, 'rustc', '--version')
+    })
+    $failures = @()
+    if ($cargo.ExitCode -ne 0) {
+        $cargoDetail = (($cargo.Output -join ' ').Trim())
+        if ([string]::IsNullOrWhiteSpace($cargoDetail)) { $cargoDetail = "exit $($cargo.ExitCode)" }
+        $failures += "cargo: $cargoDetail"
+    }
+    if ($rustc.ExitCode -ne 0) {
+        $rustcDetail = (($rustc.Output -join ' ').Trim())
+        if ([string]::IsNullOrWhiteSpace($rustcDetail)) { $rustcDetail = "exit $($rustc.ExitCode)" }
+        $failures += "rustc: $rustcDetail"
+    }
+    if ($failures.Count -gt 0) {
+        return New-CheckResult 'Pinned Rust toolchain' FAIL ($failures -join '; ')
+    }
+    $versions = (@($cargo.Output) + @($rustc.Output)) -join ' '
+    New-CheckResult 'Pinned Rust toolchain' PASS "$pinned; $($versions.Trim())"
+}
+
+function Get-RustComponentsCheck {
+    param(
+        [string]$RepositoryRoot = (Get-RepositoryRoot),
+        [string]$RustupPath,
+        [scriptblock]$Runner = {
+            param($Invocation)
+            Invoke-ExternalCommand $Invocation.FilePath $Invocation.Arguments
+        }
+    )
+    $pinned = Get-PinnedToolchain $RepositoryRoot
+    if ([string]::IsNullOrWhiteSpace($RustupPath)) {
+        $RustupPath = Resolve-RustupPath
+    }
+    if ([string]::IsNullOrWhiteSpace($RustupPath)) {
+        return New-CheckResult 'Rust components' FAIL 'rustfmt and clippy are not available because rustup.exe is missing.'
+    }
+    $components = & $Runner ([pscustomobject][ordered]@{
+        FilePath = $RustupPath
+        Arguments = @('component', 'list', '--toolchain', $pinned, '--installed')
+    })
+    $componentText = ($components.Output -join "`n")
+    if ($components.ExitCode -ne 0) {
+        $detail = $componentText.Trim()
+        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = "rustup exited with $($components.ExitCode)." }
+        return New-CheckResult 'Rust components' FAIL $detail
+    }
+    if ($componentText -notmatch 'rustfmt' -or $componentText -notmatch 'clippy') {
+        return New-CheckResult 'Rust components' FAIL 'rustfmt and clippy are not both installed.'
+    }
+    New-CheckResult 'Rust components' PASS 'rustfmt, clippy'
 }
 
 function Get-DefaultDoctorProbes {
     param([string]$RepositoryRoot = (Get-RepositoryRoot))
     $root = $RepositoryRoot
     [ordered]@{
-        Platform = ({
-            $version = [Environment]::OSVersion.Version
-            $ok = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT -and
-                [Environment]::Is64BitOperatingSystem -and $version.Major -ge 10
-            New-CheckResult Platform $(if ($ok) { 'PASS' } else { 'FAIL' }) ([Environment]::OSVersion.VersionString)
-        }).GetNewClosure()
+        Platform = { Get-PlatformCheck }
         Winget = { Get-CommandCheck Winget winget.exe @('--version') }
         Git = { Get-CommandCheck Git git.exe @('--version') }
         GitLfs = { Get-CommandCheck 'Git LFS' git-lfs.exe @('--version') }
@@ -196,7 +324,9 @@ function Get-DefaultDoctorProbes {
         Ninja = { Get-CommandCheck Ninja ninja.exe @('--version') }
         Python = { Get-CommandCheck Python python.exe @('--version') }
         Cargo = { Get-CommandCheck Cargo cargo.exe @('--version') }
-        Rust = ({ Get-RustToolchainChecks $root }).GetNewClosure()
+        Rustup = { Get-RustupCheck }
+        PinnedToolchain = ({ Get-PinnedToolchainCheck $root }).GetNewClosure()
+        RustComponents = ({ Get-RustComponentsCheck $root }).GetNewClosure()
         Restart = {
             New-CheckResult Restart $(if (Test-PendingRestart) { 'WARN' } else { 'PASS' }) `
                 $(if (Test-PendingRestart) { 'Windows restart is pending.' } else { 'No restart is pending.' })
@@ -207,11 +337,11 @@ function Get-DefaultDoctorProbes {
 function Get-DoctorReport {
     param([Parameter(Mandatory)][System.Collections.IDictionary]$Probes)
     foreach ($entry in $Probes.GetEnumerator()) {
-        try {
-            @(& $entry.Value) | ForEach-Object { $_ }
-        } catch {
-            New-CheckResult ([string]$entry.Key) FAIL $_.Exception.Message
+        $result = @(& $entry.Value)
+        if ($result.Count -ne 1) {
+            throw "Doctor probe '$($entry.Key)' returned $($result.Count) results; expected exactly one."
         }
+        $result[0]
     }
 }
 

@@ -27,7 +27,7 @@ try {
             Error = $_.Exception.Message
         } | ConvertTo-Json -Depth 5
     } else {
-        Write-Error $_.Exception.Message
+        Write-Error $_.Exception.Message -ErrorAction Continue
     }
     exit 2
 }
