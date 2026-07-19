@@ -411,13 +411,16 @@ function Test-PackagePresent {
         [scriptblock]$CommandResolver = {
             param($Command)
             Get-Command $Command -ErrorAction SilentlyContinue
-        }
+        },
+        [scriptblock]$VisualStudioCheck = { Get-VisualStudioCheck },
+        [scriptblock]$WindowsSdkCheck = { Get-WindowsSdkCheck }
     )
     if (-not [string]::IsNullOrWhiteSpace($Package.Command)) {
         return $null -ne (& $CommandResolver $Package.Command)
     }
     if ($Package.Id -eq 'Microsoft.VisualStudio.2022.BuildTools') {
-        return (Get-VisualStudioCheck).Status -eq 'PASS'
+        return (& $VisualStudioCheck).Status -eq 'PASS' -and
+            (& $WindowsSdkCheck).Status -eq 'PASS'
     }
     $false
 }

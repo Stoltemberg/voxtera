@@ -1,6 +1,82 @@
 $windowsRoot = Split-Path $PSScriptRoot -Parent
 Import-Module (Join-Path $windowsRoot 'Bootstrap.Common.psm1') -Force -DisableNameChecking
 
+function Test-ForbiddenVelorenSource {
+    param([Parameter(Mandatory)][string]$Source)
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput(
+        $Source,
+        [ref]$tokens,
+        [ref]$errors
+    )
+    if ($errors.Count -gt 0) {
+        throw "Cannot scan invalid PowerShell source: $($errors[0].Message)"
+    }
+
+    $forbiddenCargoCommands = @('build', 'check', 'test', 'run')
+    $forbiddenExecutables = @(
+        'veloren-voxygen',
+        'veloren-voxygen.exe',
+        'veloren-server-cli',
+        'veloren-server-cli.exe'
+    )
+    $commands = $ast.FindAll(
+        {
+            param($candidate)
+            $candidate -is [System.Management.Automation.Language.CommandAst]
+        },
+        $true
+    )
+    foreach ($command in $commands) {
+        $commandName = $command.GetCommandName()
+        if ([string]::IsNullOrWhiteSpace($commandName)) {
+            continue
+        }
+        $executable = [System.IO.Path]::GetFileName(
+            $commandName.Replace('/', '\')
+        ).ToLowerInvariant()
+
+        $literalArguments = New-Object System.Collections.Generic.List[string]
+        for ($index = 1; $index -lt $command.CommandElements.Count; $index++) {
+            $strings = $command.CommandElements[$index].FindAll(
+                {
+                    param($candidate)
+                    $candidate -is [System.Management.Automation.Language.StringConstantExpressionAst]
+                },
+                $true
+            )
+            foreach ($string in $strings) {
+                $literalArguments.Add($string.Value) | Out-Null
+            }
+        }
+
+        if ($forbiddenExecutables -contains $executable) {
+            return $true
+        }
+        if ($executable -in @('cargo', 'cargo.exe') -and
+            $literalArguments.Count -gt 0 -and
+            $literalArguments[0].ToLowerInvariant() -in $forbiddenCargoCommands) {
+            return $true
+        }
+        if ($executable -eq 'invoke-externalcommand' -and
+            $literalArguments.Count -gt 0) {
+            $wrappedExecutable = [System.IO.Path]::GetFileName(
+                $literalArguments[0].Replace('/', '\')
+            ).ToLowerInvariant()
+            if ($forbiddenExecutables -contains $wrappedExecutable) {
+                return $true
+            }
+            if ($wrappedExecutable -in @('cargo', 'cargo.exe') -and
+                $literalArguments.Count -gt 1 -and
+                $literalArguments[1].ToLowerInvariant() -in $forbiddenCargoCommands) {
+                return $true
+            }
+        }
+    }
+    $false
+}
+
 Test-Case 'manifest contains exact package IDs' {
     $manifest = Import-PowerShellDataFile (Join-Path $windowsRoot 'packages.psd1')
     Assert-Equal 'Git.Git' $manifest.Packages.Git.Id
@@ -214,8 +290,40 @@ Test-Case 'production scripts never compile or run Veloren' {
     )
     foreach ($file in $productionFiles) {
         $content = Get-Content -LiteralPath $file -Raw
-        Assert-True ($content -notmatch '(?im)\bcargo\s+(build|check|test|run)\b') "$file invokes Cargo."
-        Assert-True ($content -notmatch '(?im)\bveloren-voxygen(?:\.exe)?\b') "$file launches Voxygen."
-        Assert-True ($content -notmatch '(?im)\bveloren-server-cli(?:\.exe)?\b') "$file launches the server."
+        Assert-True (-not (Test-ForbiddenVelorenSource -Source $content)) `
+            "$file compiles or runs Veloren."
     }
+}
+
+Test-Case 'scope guard rejects call-operator Cargo builds' {
+    Assert-True (Test-ForbiddenVelorenSource -Source '& cargo.exe build')
+}
+
+Test-Case 'scope guard rejects quoted Cargo path tests' {
+    Assert-True (
+        Test-ForbiddenVelorenSource `
+            -Source "& 'C:\Program Files\Rust\cargo.exe' test --workspace"
+    )
+}
+
+Test-Case 'scope guard rejects wrapped Cargo builds' {
+    Assert-True (
+        Test-ForbiddenVelorenSource `
+            -Source "Invoke-ExternalCommand 'cargo.exe' @('build')"
+    )
+}
+
+Test-Case 'scope guard permits Cargo version probes' {
+    Assert-Equal $false (
+        Test-ForbiddenVelorenSource `
+            -Source "Invoke-ExternalCommand 'cargo.exe' @('--version')"
+    )
+}
+
+Test-Case 'scope guard ignores explanatory text and comments' {
+    $source = @"
+# cargo test is intentionally outside this bootstrap.
+Write-Host 'Do not run cargo build from this script.'
+"@
+    Assert-Equal $false (Test-ForbiddenVelorenSource -Source $source)
 }

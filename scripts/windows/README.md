@@ -1,7 +1,11 @@
 # Windows development environment
 
-The bootstrap prepares the complete Veloren client and server compilation
-environment. It does not compile or run the project.
+These scripts target 64-bit Windows 10 and Windows 11 client editions only.
+Windows Server and 32-bit Windows are unsupported.
+
+The bootstrap checks and attempts to install the prerequisites used to compile
+the Veloren client and server. It does not compile or run the project. Use the
+final doctor report to identify anything that still needs attention.
 
 ## Install missing prerequisites
 
@@ -12,8 +16,9 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\windows\bootstrap.ps1
 ```
 
-Approve the single UAC request. The script installs missing packages only and
-does not upgrade tools that are already usable.
+If Windows prompts, approve the elevation request. The script leaves complete,
+usable prerequisites alone and invokes Winget only for missing or incomplete
+entries; it does not intentionally upgrade complete tools.
 
 ## Preview without changing the machine
 

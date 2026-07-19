@@ -30,6 +30,38 @@ Test-Case 'package detection resolves the manifest command without executing it'
     Assert-Equal 'git.exe' $resolvedCommands[0]
 }
 
+Test-Case 'Visual Studio package requires its C++ workload and Windows SDK' {
+    $package = @{
+        Id = 'Microsoft.VisualStudio.2022.BuildTools'
+        Command = $null
+    }
+    $present = Test-PackagePresent `
+        -Package $package `
+        -VisualStudioCheck {
+            New-CheckResult 'Visual Studio Build Tools' PASS 'C:\fake\BuildTools'
+        } `
+        -WindowsSdkCheck {
+            New-CheckResult 'Windows SDK' PASS 'C:\fake\Windows Kits\10'
+        }
+    Assert-Equal $true $present
+}
+
+Test-Case 'Visual Studio package is repairable when Windows SDK is missing' {
+    $package = @{
+        Id = 'Microsoft.VisualStudio.2022.BuildTools'
+        Command = $null
+    }
+    $present = Test-PackagePresent `
+        -Package $package `
+        -VisualStudioCheck {
+            New-CheckResult 'Visual Studio Build Tools' PASS 'C:\fake\BuildTools'
+        } `
+        -WindowsSdkCheck {
+            New-CheckResult 'Windows SDK' FAIL 'missing'
+        }
+    Assert-Equal $false $present
+}
+
 Test-Case 'bootstrap log path resolution is pure and canonical' {
     $relativeDirectory = "VelorenDev\logs\pure-$([guid]::NewGuid())"
     $directory = Join-Path $env:LOCALAPPDATA $relativeDirectory
