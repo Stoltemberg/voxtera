@@ -384,4 +384,216 @@ function Write-DoctorTable {
     }
 }
 
+function New-InstallResult {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)]
+        [ValidateSet('INSTALLED', 'ALREADY PRESENT', 'FAILED', 'SKIPPED')]
+        [string]$Status,
+        [Parameter(Mandatory)][string]$Detail
+    )
+    [pscustomobject][ordered]@{
+        Name = $Name
+        Status = $Status
+        Detail = $Detail
+    }
+}
+
+function Test-PackagePresent {
+    param(
+        [Parameter(Mandatory)][hashtable]$Package,
+        [scriptblock]$CommandResolver = {
+            param($Command)
+            Get-Command $Command -ErrorAction SilentlyContinue
+        }
+    )
+    if (-not [string]::IsNullOrWhiteSpace($Package.Command)) {
+        return $null -ne (& $CommandResolver $Package.Command)
+    }
+    if ($Package.Id -eq 'Microsoft.VisualStudio.2022.BuildTools') {
+        return (Get-VisualStudioCheck).Status -eq 'PASS'
+    }
+    $false
+}
+
+function Install-WingetPackage {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][hashtable]$Package,
+        [scriptblock]$Detector = {
+            param($Value)
+            Test-PackagePresent $Value
+        },
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        },
+        [string]$LogPath
+    )
+    if (& $Detector $Package) {
+        return New-InstallResult -Name $Name -Status 'ALREADY PRESENT' -Detail $Package.Id
+    }
+    if (-not $PSCmdlet.ShouldProcess($Package.Id, 'Install Winget package')) {
+        return New-InstallResult -Name $Name -Status 'SKIPPED' -Detail 'WhatIf'
+    }
+
+    $arguments = @(
+        'install',
+        '--id', $Package.Id,
+        '--exact',
+        '--accept-package-agreements',
+        '--accept-source-agreements',
+        '--disable-interactivity'
+    ) + @($Package.WingetArguments)
+
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
+        $result = & $Runner 'winget.exe' $arguments
+        if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
+            Write-BootstrapLog -Path $LogPath `
+                -Message "$($result.Command) => $($result.ExitCode)"
+        }
+        if ($result.ExitCode -in @(0, 1641, 3010)) {
+            $detail = if ($result.ExitCode -eq 0) {
+                $Package.Id
+            } else {
+                "$($Package.Id); restart required"
+            }
+            return New-InstallResult -Name $Name -Status 'INSTALLED' -Detail $detail
+        }
+    }
+
+    $detail = (($result.Output -join ' ').Trim())
+    if ([string]::IsNullOrWhiteSpace($detail)) {
+        $detail = "winget.exe exited with code $($result.ExitCode)."
+    }
+    New-InstallResult -Name $Name -Status 'FAILED' -Detail $detail
+}
+
+function Initialize-GitLfs {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [bool]$GitLfsAvailable = ($null -ne (Get-Command git-lfs.exe -ErrorAction SilentlyContinue)),
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        },
+        [string]$LogPath
+    )
+    if (-not $GitLfsAvailable) {
+        return New-InstallResult `
+            -Name 'Git LFS initialization' `
+            -Status 'SKIPPED' `
+            -Detail 'Git LFS is unavailable.'
+    }
+    if (-not $PSCmdlet.ShouldProcess('Git LFS', 'Initialize user configuration')) {
+        return New-InstallResult `
+            -Name 'Git LFS initialization' `
+            -Status 'SKIPPED' `
+            -Detail 'WhatIf'
+    }
+
+    $result = & $Runner 'git.exe' @('lfs', 'install')
+    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
+        Write-BootstrapLog -Path $LogPath `
+            -Message "$($result.Command) => $($result.ExitCode)"
+    }
+    if ($result.ExitCode -eq 0) {
+        return New-InstallResult `
+            -Name 'Git LFS initialization' `
+            -Status 'INSTALLED' `
+            -Detail 'git lfs install'
+    }
+
+    $detail = (($result.Output -join ' ').Trim())
+    if ([string]::IsNullOrWhiteSpace($detail)) {
+        $detail = "git.exe lfs install exited with code $($result.ExitCode)."
+    }
+    New-InstallResult -Name 'Git LFS initialization' -Status 'FAILED' -Detail $detail
+}
+
+function Install-PinnedRustToolchain {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [string]$RepositoryRoot = (Get-RepositoryRoot),
+        [bool]$RustupAvailable = ($null -ne (Get-Command rustup.exe -ErrorAction SilentlyContinue)),
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        },
+        [string]$LogPath
+    )
+    if (-not $RustupAvailable) {
+        return New-InstallResult `
+            -Name 'Pinned Rust toolchain' `
+            -Status 'SKIPPED' `
+            -Detail 'Rustup is unavailable.'
+    }
+
+    $pinned = Get-PinnedToolchain $RepositoryRoot
+    $listed = & $Runner 'rustup.exe' @('toolchain', 'list')
+    if ($listed.ExitCode -ne 0) {
+        $detail = (($listed.Output -join ' ').Trim())
+        if ([string]::IsNullOrWhiteSpace($detail)) {
+            $detail = "rustup.exe toolchain list exited with code $($listed.ExitCode)."
+        }
+        return New-InstallResult -Name 'Pinned Rust toolchain' -Status 'FAILED' -Detail $detail
+    }
+
+    $toolchainPresent = (($listed.Output -join "`n") -match [regex]::Escape($pinned))
+    if ($toolchainPresent) {
+        $components = & $Runner 'rustup.exe' @(
+            'component', 'list',
+            '--toolchain', $pinned,
+            '--installed'
+        )
+        if ($components.ExitCode -ne 0) {
+            $detail = (($components.Output -join ' ').Trim())
+            if ([string]::IsNullOrWhiteSpace($detail)) {
+                $detail = "rustup.exe component list exited with code $($components.ExitCode)."
+            }
+            return New-InstallResult -Name 'Pinned Rust toolchain' -Status 'FAILED' -Detail $detail
+        }
+
+        $componentText = ($components.Output -join "`n")
+        $ready = ($componentText -match 'rustfmt') -and ($componentText -match 'clippy')
+        if ($ready) {
+            return New-InstallResult `
+                -Name 'Pinned Rust toolchain' `
+                -Status 'ALREADY PRESENT' `
+                -Detail $pinned
+        }
+    }
+
+    if (-not $PSCmdlet.ShouldProcess($pinned, 'Install Rust toolchain and components')) {
+        return New-InstallResult `
+            -Name 'Pinned Rust toolchain' `
+            -Status 'SKIPPED' `
+            -Detail 'WhatIf'
+    }
+
+    $result = & $Runner 'rustup.exe' @(
+        'toolchain', 'install', $pinned,
+        '--profile', 'minimal',
+        '--component', 'rustfmt',
+        '--component', 'clippy'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
+        Write-BootstrapLog -Path $LogPath `
+            -Message "$($result.Command) => $($result.ExitCode)"
+    }
+    if ($result.ExitCode -eq 0) {
+        return New-InstallResult `
+            -Name 'Pinned Rust toolchain' `
+            -Status 'INSTALLED' `
+            -Detail $pinned
+    }
+
+    $detail = (($result.Output -join ' ').Trim())
+    if ([string]::IsNullOrWhiteSpace($detail)) {
+        $detail = "rustup.exe toolchain install exited with code $($result.ExitCode)."
+    }
+    New-InstallResult -Name 'Pinned Rust toolchain' -Status 'FAILED' -Detail $detail
+}
+
 Export-ModuleMember -Function *
