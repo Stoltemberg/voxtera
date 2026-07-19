@@ -306,6 +306,37 @@ function Get-RustupCheck {
     Get-CommandCheck Rustup rustup.exe @('--version')
 }
 
+function Get-RustupDefaultHostResult {
+    param([Parameter(Mandatory)]$CommandResult)
+    $output = (($CommandResult.Output -join "`n").Trim())
+    if ($CommandResult.ExitCode -ne 0) {
+        if ([string]::IsNullOrWhiteSpace($output)) {
+            $output = "rustup.exe show exited with code $($CommandResult.ExitCode)."
+        }
+        return [pscustomobject][ordered]@{
+            Success = $false
+            Host = $null
+            Detail = $output
+        }
+    }
+    $match = [regex]::Match(
+        $output,
+        '(?im)^Default host:\s*((?:x86_64|aarch64)-pc-windows-(?:msvc|gnu))\s*$'
+    )
+    if (-not $match.Success) {
+        return [pscustomobject][ordered]@{
+            Success = $false
+            Host = $null
+            Detail = 'rustup.exe show did not report a supported Windows default host.'
+        }
+    }
+    [pscustomobject][ordered]@{
+        Success = $true
+        Host = $match.Groups[1].Value
+        Detail = $match.Groups[1].Value
+    }
+}
+
 function Get-PinnedToolchainCheck {
     param(
         [string]$RepositoryRoot = (Get-RepositoryRoot),
@@ -322,13 +353,22 @@ function Get-PinnedToolchainCheck {
     if ([string]::IsNullOrWhiteSpace($RustupPath)) {
         return New-CheckResult 'Pinned Rust toolchain' FAIL "$pinned is not available because rustup.exe is missing."
     }
+    $show = & $Runner ([pscustomobject][ordered]@{
+        FilePath = $RustupPath
+        Arguments = @('show')
+    })
+    $defaultHost = Get-RustupDefaultHostResult -CommandResult $show
+    if (-not $defaultHost.Success) {
+        return New-CheckResult 'Pinned Rust toolchain' FAIL $defaultHost.Detail
+    }
+    $qualified = "$pinned-$($defaultHost.Host)"
     $cargo = & $Runner ([pscustomobject][ordered]@{
         FilePath = $RustupPath
-        Arguments = @('run', $pinned, 'cargo', '--version')
+        Arguments = @('run', $qualified, 'cargo', '--version')
     })
     $rustc = & $Runner ([pscustomobject][ordered]@{
         FilePath = $RustupPath
-        Arguments = @('run', $pinned, 'rustc', '--version')
+        Arguments = @('run', $qualified, 'rustc', '--version')
     })
     $failures = @()
     if ($cargo.ExitCode -ne 0) {
@@ -345,7 +385,7 @@ function Get-PinnedToolchainCheck {
         return New-CheckResult 'Pinned Rust toolchain' FAIL ($failures -join '; ')
     }
     $versions = (@($cargo.Output) + @($rustc.Output)) -join ' '
-    New-CheckResult 'Pinned Rust toolchain' PASS "$pinned; $($versions.Trim())"
+    New-CheckResult 'Pinned Rust toolchain' PASS "$qualified; $($versions.Trim())"
 }
 
 function Get-RustComponentsCheck {
@@ -364,9 +404,18 @@ function Get-RustComponentsCheck {
     if ([string]::IsNullOrWhiteSpace($RustupPath)) {
         return New-CheckResult 'Rust components' FAIL 'rustfmt and clippy are not available because rustup.exe is missing.'
     }
+    $show = & $Runner ([pscustomobject][ordered]@{
+        FilePath = $RustupPath
+        Arguments = @('show')
+    })
+    $defaultHost = Get-RustupDefaultHostResult -CommandResult $show
+    if (-not $defaultHost.Success) {
+        return New-CheckResult 'Rust components' FAIL $defaultHost.Detail
+    }
+    $qualified = "$pinned-$($defaultHost.Host)"
     $components = & $Runner ([pscustomobject][ordered]@{
         FilePath = $RustupPath
-        Arguments = @('component', 'list', '--toolchain', $pinned, '--installed')
+        Arguments = @('component', 'list', '--toolchain', $qualified, '--installed')
     })
     $componentText = ($components.Output -join "`n")
     if ($components.ExitCode -ne 0) {
@@ -378,6 +427,60 @@ function Get-RustComponentsCheck {
         return New-CheckResult 'Rust components' FAIL 'rustfmt and clippy are not both installed.'
     }
     New-CheckResult 'Rust components' PASS 'rustfmt, clippy'
+}
+
+function Get-ManagedPackageCommandCheck {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][hashtable]$Package,
+        [scriptblock]$CommandResolver = {
+            param($Command)
+            Get-Command $Command -ErrorAction SilentlyContinue
+        },
+        [scriptblock]$Runner = {
+            param($FilePath, $Arguments)
+            Invoke-ExternalCommand $FilePath $Arguments
+        }
+    )
+    $resolved = & $CommandResolver $Package.Command
+    if ($null -eq $resolved) {
+        return New-CheckResult $Name FAIL "$($Package.Command) is missing."
+    }
+    $path = [string]$resolved.Source
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return New-CheckResult $Name FAIL "$($Package.Command) did not resolve to an executable path."
+    }
+    if ($path -match '(?i)[\\/]Microsoft[\\/]WindowsApps[\\/]') {
+        return New-CheckResult $Name FAIL "Microsoft Store execution alias is unusable: $path"
+    }
+    $versionArguments = if ($Package.ContainsKey('VersionArguments')) {
+        @($Package.VersionArguments)
+    } else {
+        @('--version')
+    }
+    try {
+        $result = & $Runner $path $versionArguments
+    } catch {
+        return New-CheckResult $Name FAIL $_.Exception.Message
+    }
+    $version = (($result.Output -join "`n").Trim())
+    if ($result.ExitCode -ne 0) {
+        if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "$($Package.Command) exited with code $($result.ExitCode)."
+        }
+        return New-CheckResult $Name FAIL $version
+    }
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        return New-CheckResult $Name FAIL "$($Package.Command) returned no version."
+    }
+    if ($Package.ContainsKey('VersionPattern') -and
+        $version -notmatch $Package.VersionPattern) {
+        return New-CheckResult `
+            -Name $Name `
+            -Status FAIL `
+            -Detail "Unexpected version: $version"
+    }
+    New-CheckResult $Name PASS $version
 }
 
 function Get-DefaultDoctorProbes {
@@ -395,6 +498,8 @@ function Get-DefaultDoctorProbes {
     $root = $RepositoryRoot
     $resolver = $CommandResolver
     $runner = $CommandRunner
+    $manifest = Import-PowerShellDataFile (Join-Path $PSScriptRoot 'packages.psd1')
+    $pythonPackage = $manifest.Packages.Python
     [ordered]@{
         Platform = { Get-PlatformCheck }
         Winget = { Get-CommandCheck Winget winget.exe @('--version') }
@@ -402,6 +507,7 @@ function Get-DefaultDoctorProbes {
         GitLfs = { Get-CommandCheck 'Git LFS' git-lfs.exe @('--version') }
         GitLfsConfig = ({
             Get-GitLfsConfigCheck `
+                -RepositoryRoot $root `
                 -CommandResolver $resolver `
                 -Runner $runner
         }).GetNewClosure()
@@ -410,7 +516,13 @@ function Get-DefaultDoctorProbes {
         WindowsSdk = { Get-WindowsSdkCheck }
         CMake = { Get-CommandCheck CMake cmake.exe @('--version') }
         Ninja = { Get-CommandCheck Ninja ninja.exe @('--version') }
-        Python = { Get-CommandCheck Python python.exe @('--version') }
+        Python = ({
+            Get-ManagedPackageCommandCheck `
+                -Name Python `
+                -Package $pythonPackage `
+                -CommandResolver $resolver `
+                -Runner $runner
+        }).GetNewClosure()
         Cargo = ({ Get-CommandPresenceCheck Cargo cargo.exe $resolver }).GetNewClosure()
         Rustup = { Get-RustupCheck }
         PinnedToolchain = ({ Get-PinnedToolchainCheck $root }).GetNewClosure()
@@ -424,6 +536,7 @@ function Get-DefaultDoctorProbes {
 
 function Get-GitLfsConfigCheck {
     param(
+        [string]$RepositoryRoot = (Get-RepositoryRoot),
         [scriptblock]$CommandResolver = {
             param($CommandName)
             Get-Command $CommandName -ErrorAction SilentlyContinue
@@ -433,6 +546,7 @@ function Get-GitLfsConfigCheck {
             Invoke-ExternalCommand $FilePath $Arguments
         }
     )
+    $root = Get-RepositoryRoot -StartPath $RepositoryRoot
     $git = & $CommandResolver 'git.exe'
     if ($null -eq $git -or
         [string]::IsNullOrWhiteSpace([string]$git.Source)) {
@@ -450,7 +564,10 @@ function Get-GitLfsConfigCheck {
     }
     $failures = New-Object System.Collections.Generic.List[string]
     foreach ($entry in $expected.GetEnumerator()) {
-        $result = & $Runner $gitPath @('config', '--get', $entry.Key)
+        $result = & $Runner $gitPath @(
+            '-C', $root,
+            'config', '--get', $entry.Key
+        )
         $actual = (($result.Output -join "`n").Trim())
         if ($result.ExitCode -ne 0 -or
             -not [string]::Equals(
@@ -526,37 +643,12 @@ function Test-PackagePresent {
         [scriptblock]$WindowsSdkCheck = { Get-WindowsSdkCheck }
     )
     if (-not [string]::IsNullOrWhiteSpace($Package.Command)) {
-        $resolved = & $CommandResolver $Package.Command
-        if ($null -eq $resolved) {
-            return $false
-        }
-        $path = [string]$resolved.Source
-        if ([string]::IsNullOrWhiteSpace($path) -or
-            $path -match '(?i)[\\/]Microsoft[\\/]WindowsApps[\\/]') {
-            return $false
-        }
-        $versionArguments = if ($Package.ContainsKey('VersionArguments')) {
-            @($Package.VersionArguments)
-        } else {
-            @('--version')
-        }
-        try {
-            $result = & $Runner $path $versionArguments
-        } catch {
-            return $false
-        }
-        if ($result.ExitCode -ne 0) {
-            return $false
-        }
-        $version = (($result.Output -join "`n").Trim())
-        if ([string]::IsNullOrWhiteSpace($version)) {
-            return $false
-        }
-        if ($Package.ContainsKey('VersionPattern') -and
-            $version -notmatch $Package.VersionPattern) {
-            return $false
-        }
-        return $true
+        $check = Get-ManagedPackageCommandCheck `
+            -Name $Package.Id `
+            -Package $Package `
+            -CommandResolver $CommandResolver `
+            -Runner $Runner
+        return $check.Status -eq 'PASS'
     }
     if ($Package.Id -eq 'Microsoft.VisualStudio.2022.BuildTools') {
         return (& $VisualStudioCheck).Status -eq 'PASS' -and
@@ -568,14 +660,18 @@ function Test-PackagePresent {
 function Test-PinnedRustToolchainListed {
     param(
         [Parameter(Mandatory)][string]$Pinned,
+        [Parameter(Mandatory)][string]$DefaultHost,
         [string[]]$Entries = @()
     )
-    $pattern = '^{0}(?:-(?:x86_64|aarch64)-pc-windows-(?:msvc|gnu))?$' -f
-        [regex]::Escape($Pinned)
+    $qualified = "$Pinned-$DefaultHost"
     foreach ($entry in @($Entries)) {
         foreach ($line in @([string]$entry -split "\r?\n")) {
             $name = [regex]::Replace($line.Trim(), '\s+\([^)]*\)\s*$', '')
-            if ([regex]::IsMatch($name, $pattern)) {
+            if ([string]::Equals(
+                $name,
+                $qualified,
+                [System.StringComparison]::Ordinal
+            )) {
                 return $true
             }
         }
@@ -639,6 +735,9 @@ function Install-WingetPackage {
                 "$($Package.Id); restart required"
             }
             return New-InstallResult -Name $Name -Status 'INSTALLED' -Detail $detail
+        }
+        if ($result.ExitCode -ne 1618) {
+            break
         }
     }
 
@@ -755,6 +854,9 @@ function Install-VisualStudioBuildTools {
                 -Name 'VisualStudio' `
                 -Status INSTALLED `
                 -Detail $detail
+        }
+        if ($result.ExitCode -ne 1618) {
+            break
         }
     }
 
@@ -873,6 +975,16 @@ function Install-PinnedRustToolchain {
             -Detail 'WhatIf'
     }
 
+    $show = & $Runner 'rustup.exe' @('show')
+    $defaultHost = Get-RustupDefaultHostResult -CommandResult $show
+    if (-not $defaultHost.Success) {
+        return New-InstallResult `
+            -Name 'Pinned Rust toolchain' `
+            -Status FAILED `
+            -Detail $defaultHost.Detail
+    }
+    $qualified = "$pinned-$($defaultHost.Host)"
+
     $listed = & $Runner 'rustup.exe' @('toolchain', 'list')
     if ($listed.ExitCode -ne 0) {
         $detail = (($listed.Output -join ' ').Trim())
@@ -882,12 +994,15 @@ function Install-PinnedRustToolchain {
         return New-InstallResult -Name 'Pinned Rust toolchain' -Status 'FAILED' -Detail $detail
     }
 
-    $toolchainPresent = Test-PinnedRustToolchainListed -Pinned $pinned -Entries @($listed.Output)
+    $toolchainPresent = Test-PinnedRustToolchainListed `
+        -Pinned $pinned `
+        -DefaultHost $defaultHost.Host `
+        -Entries @($listed.Output)
     $missingComponents = @('rustfmt', 'clippy')
     if ($toolchainPresent) {
         $components = & $Runner 'rustup.exe' @(
             'component', 'list',
-            '--toolchain', $pinned,
+            '--toolchain', $qualified,
             '--installed'
         )
         if ($components.ExitCode -ne 0) {
@@ -908,22 +1023,22 @@ function Install-PinnedRustToolchain {
             return New-InstallResult `
                 -Name 'Pinned Rust toolchain' `
                 -Status 'ALREADY PRESENT' `
-                -Detail $pinned
+                -Detail $qualified
         }
     }
 
     if ($toolchainPresent) {
-        $arguments = @('component', 'add', '--toolchain', $pinned) + $missingComponents
-        $successDetail = "$pinned; added $($missingComponents -join ', ')"
+        $arguments = @('component', 'add', '--toolchain', $qualified) + $missingComponents
+        $successDetail = "$qualified; added $($missingComponents -join ', ')"
         $failureDescription = 'component add'
     } else {
         $arguments = @(
-            'toolchain', 'install', $pinned,
+            'toolchain', 'install', $qualified,
             '--profile', 'minimal',
             '--component', 'rustfmt',
             '--component', 'clippy'
         )
-        $successDetail = $pinned
+        $successDetail = $qualified
         $failureDescription = 'toolchain install'
     }
 

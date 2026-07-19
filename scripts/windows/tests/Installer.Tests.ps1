@@ -332,7 +332,7 @@ Test-Case 'Winget installer retries once and succeeds' {
     $runner = {
         param($FilePath, $Arguments)
         $calls.Add([pscustomobject]@{ FilePath = $FilePath; Arguments = @($Arguments) }) | Out-Null
-        New-FakeCommandResult -ExitCode $(if ($calls.Count -eq 1) { 1 } else { 0 }) `
+        New-FakeCommandResult -ExitCode $(if ($calls.Count -eq 1) { 1618 } else { 0 }) `
             -Command "$FilePath $($Arguments -join ' ')"
     }.GetNewClosure()
     $result = Install-WingetPackage -Name Git -Package @{
@@ -376,7 +376,7 @@ Test-Case 'successful Winget install is not retried' {
     Assert-Equal 'INSTALLED' $result.Status
 }
 
-Test-Case 'failed Winget install is attempted at most twice' {
+Test-Case 'non-transient Winget failure is not retried' {
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($FilePath, $Arguments)
@@ -387,9 +387,24 @@ Test-Case 'failed Winget install is attempted at most twice' {
         Id = 'Git.Git'
         WingetArguments = @()
     } -Detector { param($Package) $false } -Runner $runner -Confirm:$false
-    Assert-Equal 2 $calls.Count
+    Assert-Equal 1 $calls.Count
     Assert-Equal 'FAILED' $result.Status
     Assert-Match 'simulated Winget failure' $result.Detail
+}
+
+Test-Case 'Winget retries a clearly transient installer-busy failure once' {
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $calls.Add($FilePath) | Out-Null
+        New-FakeCommandResult -ExitCode $(if ($calls.Count -eq 1) { 1618 } else { 0 })
+    }.GetNewClosure()
+    $result = Install-WingetPackage -Name Git -Package @{
+        Id = 'Git.Git'
+        WingetArguments = @()
+    } -Detector { $false } -Runner $runner -Confirm:$false
+    Assert-Equal 2 $calls.Count
+    Assert-Equal 'INSTALLED' $result.Status
 }
 
 Test-Case 'Winget code 3010 is successful and requires restart' {
@@ -575,15 +590,20 @@ Test-Case 'failed prerequisite produces skipped Rust toolchain' {
 Test-Case 'ready pinned Rust toolchain is not reinstalled' {
     $root = Get-RepositoryRoot
     $pinned = Get-PinnedToolchain $root
+    $qualified = "$pinned-x86_64-pc-windows-msvc"
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($FilePath, $Arguments)
         $call = $Arguments -join ' '
         $calls.Add($call) | Out-Null
-        if ($call -eq 'toolchain list') {
-            return New-FakeCommandResult -ExitCode 0 -Output @("$pinned-x86_64-pc-windows-msvc (active)")
+        if ($call -eq 'show') {
+            return New-FakeCommandResult `
+                -Output @('Default host: x86_64-pc-windows-msvc')
         }
-        if ($call -eq "component list --toolchain $pinned --installed") {
+        if ($call -eq 'toolchain list') {
+            return New-FakeCommandResult -ExitCode 0 -Output @("$qualified (active)")
+        }
+        if ($call -eq "component list --toolchain $qualified --installed") {
             return New-FakeCommandResult -ExitCode 0 -Output @(
                 "rustfmt-x86_64-pc-windows-msvc (installed)",
                 "clippy-x86_64-pc-windows-msvc (installed)"
@@ -594,17 +614,22 @@ Test-Case 'ready pinned Rust toolchain is not reinstalled' {
     $result = Install-PinnedRustToolchain -RepositoryRoot $root `
         -RustupAvailable:$true -Runner $runner -Confirm:$false
     Assert-Equal 'ALREADY PRESENT' $result.Status
-    Assert-Equal 2 $calls.Count
+    Assert-Equal 3 $calls.Count
 }
 
 Test-Case 'Rust toolchain collision does not satisfy the exact pin' {
     $root = Get-RepositoryRoot
     $pinned = Get-PinnedToolchain $root
+    $qualified = "$pinned-x86_64-pc-windows-msvc"
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($FilePath, $Arguments)
         $call = $Arguments -join ' '
         $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return New-FakeCommandResult `
+                -Output @('Default host: x86_64-pc-windows-msvc')
+        }
         if ($call -eq 'toolchain list') {
             return New-FakeCommandResult -ExitCode 0 -Output @("$pinned-custom (active)")
         }
@@ -613,52 +638,114 @@ Test-Case 'Rust toolchain collision does not satisfy the exact pin' {
     $result = Install-PinnedRustToolchain -RepositoryRoot $root `
         -RustupAvailable:$true -Runner $runner -Confirm:$false
     Assert-Equal 'INSTALLED' $result.Status
-    Assert-Equal 2 $calls.Count
-    Assert-Equal "toolchain install $pinned --profile minimal --component rustfmt --component clippy" $calls[1]
+    Assert-Equal 3 $calls.Count
+    Assert-Equal "toolchain install $qualified --profile minimal --component rustfmt --component clippy" $calls[2]
+}
+
+Test-Case 'Rust installer rejects a listed toolchain for the wrong host' {
+    $root = Get-RepositoryRoot
+    $pinned = Get-PinnedToolchain $root
+    $defaultHost = 'x86_64-pc-windows-msvc'
+    $qualified = "$pinned-$defaultHost"
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $call = $Arguments -join ' '
+        $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return New-FakeCommandResult -Output @("Default host: $defaultHost")
+        }
+        if ($call -eq 'toolchain list') {
+            return New-FakeCommandResult `
+                -Output @("$pinned-x86_64-pc-windows-gnu (active)")
+        }
+        New-FakeCommandResult
+    }.GetNewClosure()
+    $result = Install-PinnedRustToolchain `
+        -RepositoryRoot $root `
+        -RustupAvailable:$true `
+        -Runner $runner `
+        -Confirm:$false
+    Assert-Equal 'INSTALLED' $result.Status
+    Assert-Equal "toolchain install $qualified --profile minimal --component rustfmt --component clippy" `
+        $calls[2]
+}
+
+Test-Case 'Rust installer reports default-host discovery failure without mutation' {
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($FilePath, $Arguments)
+        $call = $Arguments -join ' '
+        $calls.Add($call) | Out-Null
+        New-FakeCommandResult -ExitCode 7 -Output @('default host unavailable')
+    }.GetNewClosure()
+    $result = Install-PinnedRustToolchain `
+        -RepositoryRoot (Get-RepositoryRoot) `
+        -RustupAvailable:$true `
+        -Runner $runner `
+        -Confirm:$false
+    Assert-Equal 'FAILED' $result.Status
+    Assert-Equal 'show' ($calls -join ',')
+    Assert-Match 'default host unavailable' $result.Detail
 }
 
 Test-Case 'failed Rust toolchain query is reported without installation' {
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($FilePath, $Arguments)
-        $calls.Add(($Arguments -join ' ')) | Out-Null
+        $call = $Arguments -join ' '
+        $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return New-FakeCommandResult `
+                -Output @('Default host: x86_64-pc-windows-msvc')
+        }
         New-FakeCommandResult -ExitCode 7 -Output @('toolchain query failed')
     }.GetNewClosure()
     $result = Install-PinnedRustToolchain -RepositoryRoot (Get-RepositoryRoot) `
         -RustupAvailable:$true -Runner $runner -Confirm:$false
     Assert-Equal 'FAILED' $result.Status
-    Assert-Equal 1 $calls.Count
+    Assert-Equal 2 $calls.Count
     Assert-Match 'toolchain query failed' $result.Detail
 }
 
 Test-Case 'failed Rust component query is reported without installation' {
     $root = Get-RepositoryRoot
     $pinned = Get-PinnedToolchain $root
+    $qualified = "$pinned-x86_64-pc-windows-msvc"
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($FilePath, $Arguments)
         $call = $Arguments -join ' '
         $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return New-FakeCommandResult `
+                -Output @('Default host: x86_64-pc-windows-msvc')
+        }
         if ($call -eq 'toolchain list') {
-            return New-FakeCommandResult -ExitCode 0 -Output @("$pinned-x86_64-pc-windows-msvc")
+            return New-FakeCommandResult -ExitCode 0 -Output @($qualified)
         }
         New-FakeCommandResult -ExitCode 8 -Output @('component query failed')
     }.GetNewClosure()
     $result = Install-PinnedRustToolchain -RepositoryRoot $root `
         -RustupAvailable:$true -Runner $runner -Confirm:$false
     Assert-Equal 'FAILED' $result.Status
-    Assert-Equal 2 $calls.Count
+    Assert-Equal 3 $calls.Count
     Assert-Match 'component query failed' $result.Detail
 }
 
 Test-Case 'Rust installer pins toolchain components without changing global default' {
     $root = Get-RepositoryRoot
     $pinned = Get-PinnedToolchain $root
+    $qualified = "$pinned-x86_64-pc-windows-msvc"
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($FilePath, $Arguments)
         $call = $Arguments -join ' '
         $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return New-FakeCommandResult `
+                -Output @('Default host: x86_64-pc-windows-msvc')
+        }
         if ($call -eq 'toolchain list') {
             return New-FakeCommandResult -ExitCode 0 -Output @('stable-x86_64-pc-windows-msvc')
         }
@@ -667,24 +754,29 @@ Test-Case 'Rust installer pins toolchain components without changing global defa
     $result = Install-PinnedRustToolchain -RepositoryRoot $root `
         -RustupAvailable:$true -Runner $runner -Confirm:$false
     Assert-Equal 'INSTALLED' $result.Status
-    Assert-Equal 2 $calls.Count
-    Assert-Equal "toolchain install $pinned --profile minimal --component rustfmt --component clippy" $calls[1]
+    Assert-Equal 3 $calls.Count
+    Assert-Equal "toolchain install $qualified --profile minimal --component rustfmt --component clippy" $calls[2]
     Assert-True (-not (($calls -join "`n") -match '(^|\s)default(\s|$)'))
 }
 
 Test-Case 'Rust adds only a missing pinned component without changing global default' {
     $root = Get-RepositoryRoot
     $pinned = Get-PinnedToolchain $root
+    $qualified = "$pinned-x86_64-pc-windows-msvc"
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($FilePath, $Arguments)
         $call = $Arguments -join ' '
         $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return New-FakeCommandResult `
+                -Output @('Default host: x86_64-pc-windows-msvc')
+        }
         if ($call -eq 'toolchain list') {
             return New-FakeCommandResult -ExitCode 0 `
-                -Output @("$pinned-x86_64-pc-windows-msvc (active)")
+                -Output @("$qualified (active)")
         }
-        if ($call -eq "component list --toolchain $pinned --installed") {
+        if ($call -eq "component list --toolchain $qualified --installed") {
             return New-FakeCommandResult -ExitCode 0 `
                 -Output @('rustfmt-x86_64-pc-windows-msvc (installed)')
         }
@@ -693,8 +785,8 @@ Test-Case 'Rust adds only a missing pinned component without changing global def
     $result = Install-PinnedRustToolchain -RepositoryRoot $root `
         -RustupAvailable:$true -Runner $runner -Confirm:$false
     Assert-Equal 'INSTALLED' $result.Status
-    Assert-Equal 3 $calls.Count
-    Assert-Equal "component add --toolchain $pinned clippy" $calls[2]
+    Assert-Equal 4 $calls.Count
+    Assert-Equal "component add --toolchain $qualified clippy" $calls[3]
     Assert-True (-not (($calls -join "`n") -match '(^|\s)default(\s|$)'))
 }
 
@@ -738,6 +830,10 @@ Test-Case 'failed Rust installation checks its external exit code' {
     $runner = {
         param($FilePath, $Arguments)
         $call = $Arguments -join ' '
+        if ($call -eq 'show') {
+            return New-FakeCommandResult `
+                -Output @('Default host: x86_64-pc-windows-msvc')
+        }
         if ($call -eq 'toolchain list') {
             return New-FakeCommandResult -ExitCode 0 -Output @()
         }

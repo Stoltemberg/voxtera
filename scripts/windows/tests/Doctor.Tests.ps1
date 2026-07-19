@@ -143,6 +143,83 @@ Test-Case 'manifest contains exact package IDs' {
     Assert-Equal 'Rustup' $manifest.Order[-1]
 }
 
+Test-Case 'default Python probe requires managed Python 3.13 and rejects Store alias' {
+    $runnerCalls = 0
+    $storeProbes = Get-DefaultDoctorProbes `
+        -RepositoryRoot (Get-RepositoryRoot) `
+        -CommandResolver {
+            param($Command)
+            if ($Command -eq 'python.exe') {
+                return [pscustomobject]@{
+                    Source = 'C:\Users\test\AppData\Local\Microsoft\WindowsApps\python.exe'
+                }
+            }
+            $null
+        } `
+        -CommandRunner {
+            $runnerCalls++
+            throw 'Store alias must not execute.'
+        }.GetNewClosure()
+    $storeResult = & $storeProbes.Python
+    Assert-Equal 'FAIL' $storeResult.Status
+    Assert-Equal 0 $runnerCalls
+
+    foreach ($version in @('Python 2.7.18', 'Python 3.12.10', 'Python 3.14.0')) {
+        $wrongVersionProbes = Get-DefaultDoctorProbes `
+            -RepositoryRoot (Get-RepositoryRoot) `
+            -CommandResolver {
+                [pscustomobject]@{ Source = 'C:\Python\python.exe' }
+            } `
+            -CommandRunner {
+                [pscustomobject]@{
+                    ExitCode = 0
+                    Output = @($version)
+                    Command = 'python.exe --version'
+                }
+            }.GetNewClosure()
+        Assert-Equal 'FAIL' (& $wrongVersionProbes.Python).Status
+    }
+
+    $readyProbes = Get-DefaultDoctorProbes `
+        -RepositoryRoot (Get-RepositoryRoot) `
+        -CommandResolver {
+            [pscustomobject]@{ Source = 'C:\Python313\python.exe' }
+        } `
+        -CommandRunner {
+            [pscustomobject]@{
+                ExitCode = 0
+                Output = @('Python 3.13.5')
+                Command = 'python.exe --version'
+            }
+        }
+    Assert-Equal 'PASS' (& $readyProbes.Python).Status
+}
+
+Test-Case 'doctor entrypoint rejects a Python Store alias' {
+    $doctor = (Join-Path $windowsRoot 'doctor.ps1').Replace("'", "''")
+    $command = @"
+& {
+    function global:Get-Command {
+        param(`$Name, `$ErrorAction)
+        if (`$Name -eq 'python.exe') {
+            return [pscustomobject]@{
+                Source = 'C:\Users\test\AppData\Local\Microsoft\WindowsApps\python.exe'
+            }
+        }
+        Microsoft.PowerShell.Core\Get-Command -Name `$Name -ErrorAction `$ErrorAction
+    }
+    & '$doctor' -Json
+}
+"@
+    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $command
+    $exitCode = $LASTEXITCODE
+    $document = ($output -join "`n") | ConvertFrom-Json
+    $python = $document.Checks | Where-Object Name -eq Python
+    Assert-Equal $false $document.Healthy
+    Assert-Equal 'FAIL' $python.Status
+    Assert-Match 'WindowsApps' $python.Detail
+}
+
 Test-Case 'Git LFS configuration requires all effective filter values' {
     $expected = @{
         'filter.lfs.clean' = 'git-lfs clean -- %f'
@@ -170,10 +247,41 @@ Test-Case 'Git LFS configuration requires all effective filter values' {
 
     Assert-Equal 'PASS' $result.Status
     Assert-Equal 4 $calls.Count
-    Assert-True ($calls -contains 'git.exe config --get filter.lfs.clean')
-    Assert-True ($calls -contains 'git.exe config --get filter.lfs.smudge')
-    Assert-True ($calls -contains 'git.exe config --get filter.lfs.process')
-    Assert-True ($calls -contains 'git.exe config --get filter.lfs.required')
+    Assert-True ($calls[0].EndsWith(' config --get filter.lfs.clean'))
+    Assert-True ($calls[1].EndsWith(' config --get filter.lfs.smudge'))
+    Assert-True ($calls[2].EndsWith(' config --get filter.lfs.process'))
+    Assert-True ($calls[3].EndsWith(' config --get filter.lfs.required'))
+}
+
+Test-Case 'default Git LFS configuration probe anchors every read to repository root' {
+    $root = Get-RepositoryRoot
+    $calls = New-Object System.Collections.Generic.List[string]
+    $values = @{
+        'filter.lfs.clean' = 'git-lfs clean -- %f'
+        'filter.lfs.smudge' = 'git-lfs smudge -- %f'
+        'filter.lfs.process' = 'git-lfs filter-process'
+        'filter.lfs.required' = 'true'
+    }
+    $probes = Get-DefaultDoctorProbes `
+        -RepositoryRoot $root `
+        -CommandResolver {
+            [pscustomobject]@{ Source = 'git.exe' }
+        } `
+        -CommandRunner {
+            param($FilePath, $Arguments)
+            $calls.Add(($Arguments -join ' ')) | Out-Null
+            [pscustomobject]@{
+                ExitCode = 0
+                Output = @($values[$Arguments[-1]])
+                Command = "$FilePath $($Arguments -join ' ')"
+            }
+        }.GetNewClosure()
+    $result = & $probes.GitLfsConfig
+    Assert-Equal 'PASS' $result.Status
+    Assert-Equal 4 $calls.Count
+    foreach ($call in $calls) {
+        Assert-Match ("^-C $([regex]::Escape($root)) config --get filter\.lfs\.") $call
+    }
 }
 
 Test-Case 'Git LFS configuration fails for an ineffective filter value' {
@@ -324,7 +432,14 @@ Test-Case 'pinned toolchain validates cargo and rustc through rustup run' {
     $calls = New-Object System.Collections.Generic.List[string]
     $runner = {
         param($Invocation)
-        $calls.Add(($Invocation.Arguments -join ' ')) | Out-Null
+        $call = $Invocation.Arguments -join ' '
+        $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return [pscustomobject]@{
+                ExitCode = 0
+                Output = @('Default host: x86_64-pc-windows-msvc')
+            }
+        }
         [pscustomobject]@{
             ExitCode = 0
             Output = @("$($Invocation.Arguments[2]) 1.0.0")
@@ -335,14 +450,72 @@ Test-Case 'pinned toolchain validates cargo and rustc through rustup run' {
     $result = Get-PinnedToolchainCheck `
         -RepositoryRoot $root -RustupPath 'rustup-test.exe' -Runner $runner
     Assert-Equal 'PASS' $result.Status
-    Assert-Equal 2 $calls.Count
-    Assert-Equal "run $pinned cargo --version" $calls[0]
-    Assert-Equal "run $pinned rustc --version" $calls[1]
+    Assert-Equal 3 $calls.Count
+    Assert-Equal 'show' $calls[0]
+    Assert-Equal "run $pinned-x86_64-pc-windows-msvc cargo --version" $calls[1]
+    Assert-Equal "run $pinned-x86_64-pc-windows-msvc rustc --version" $calls[2]
+}
+
+Test-Case 'pinned toolchain list accepts only the exact rustup default host' {
+    $pin = 'nightly-2026-06-13'
+    $defaultHost = 'x86_64-pc-windows-msvc'
+    Assert-Equal $true (
+        Test-PinnedRustToolchainListed `
+            -Pinned $pin `
+            -DefaultHost $defaultHost `
+            -Entries @("$pin-$defaultHost (active)")
+    )
+    foreach ($entry in @(
+        $pin,
+        "$pin-x86_64-pc-windows-gnu",
+        "$pin-aarch64-pc-windows-msvc"
+    )) {
+        Assert-Equal $false (
+            Test-PinnedRustToolchainListed `
+                -Pinned $pin `
+                -DefaultHost $defaultHost `
+                -Entries @($entry)
+        )
+    }
+}
+
+Test-Case 'Rust component doctor queries the exact default-host toolchain' {
+    $root = Get-RepositoryRoot
+    $pin = Get-PinnedToolchain $root
+    $defaultHost = 'x86_64-pc-windows-msvc'
+    $calls = New-Object System.Collections.Generic.List[string]
+    $runner = {
+        param($Invocation)
+        $call = $Invocation.Arguments -join ' '
+        $calls.Add($call) | Out-Null
+        if ($call -eq 'show') {
+            return [pscustomobject]@{
+                ExitCode = 0
+                Output = @("Default host: $defaultHost")
+            }
+        }
+        [pscustomobject]@{
+            ExitCode = 0
+            Output = @('rustfmt (installed)', 'clippy (installed)')
+        }
+    }.GetNewClosure()
+    $result = Get-RustComponentsCheck `
+        -RepositoryRoot $root `
+        -RustupPath 'rustup-test.exe' `
+        -Runner $runner
+    Assert-Equal 'PASS' $result.Status
+    Assert-Equal "component list --toolchain $pin-$defaultHost --installed" $calls[1]
 }
 
 Test-Case 'pinned toolchain fails when pinned cargo is unusable' {
     $runner = {
         param($Invocation)
+        if (($Invocation.Arguments -join ' ') -eq 'show') {
+            return [pscustomobject]@{
+                ExitCode = 0
+                Output = @('Default host: x86_64-pc-windows-msvc')
+            }
+        }
         $exitCode = if ($Invocation.Arguments[2] -eq 'cargo') { 1 } else { 0 }
         [pscustomobject]@{
             ExitCode = $exitCode
