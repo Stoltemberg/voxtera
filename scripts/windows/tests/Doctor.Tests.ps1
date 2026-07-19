@@ -1,6 +1,37 @@
 $windowsRoot = Split-Path $PSScriptRoot -Parent
 Import-Module (Join-Path $windowsRoot 'Bootstrap.Common.psm1') -Force -DisableNameChecking
 
+function Test-ForbiddenCargoArguments {
+    param([string[]]$Arguments = @())
+    $commandIndex = 0
+    while ($commandIndex -lt $Arguments.Count -and
+        $Arguments[$commandIndex].StartsWith('+')) {
+        $commandIndex++
+    }
+    $commandIndex -lt $Arguments.Count -and
+        $Arguments[$commandIndex].ToLowerInvariant() -in @(
+            'build',
+            'check',
+            'test',
+            'run'
+        )
+}
+
+function Test-ForbiddenRustupArguments {
+    param([string[]]$Arguments = @())
+    if ($Arguments.Count -eq 0 -or
+        $Arguments[0].ToLowerInvariant() -ne 'run') {
+        return $false
+    }
+    for ($index = 1; $index -lt $Arguments.Count; $index++) {
+        if ($Arguments[$index].ToLowerInvariant() -in @('cargo', 'cargo.exe')) {
+            $cargoArguments = @($Arguments | Select-Object -Skip ($index + 1))
+            return Test-ForbiddenCargoArguments -Arguments $cargoArguments
+        }
+    }
+    $false
+}
+
 function Test-ForbiddenVelorenSource {
     param([Parameter(Mandatory)][string]$Source)
     $tokens = $null
@@ -14,7 +45,6 @@ function Test-ForbiddenVelorenSource {
         throw "Cannot scan invalid PowerShell source: $($errors[0].Message)"
     }
 
-    $forbiddenCargoCommands = @('build', 'check', 'test', 'run')
     $forbiddenExecutables = @(
         'veloren-voxygen',
         'veloren-voxygen.exe',
@@ -55,21 +85,44 @@ function Test-ForbiddenVelorenSource {
             return $true
         }
         if ($executable -in @('cargo', 'cargo.exe') -and
-            $literalArguments.Count -gt 0 -and
-            $literalArguments[0].ToLowerInvariant() -in $forbiddenCargoCommands) {
+            (Test-ForbiddenCargoArguments -Arguments $literalArguments)) {
             return $true
         }
-        if ($executable -eq 'invoke-externalcommand' -and
-            $literalArguments.Count -gt 0) {
-            $wrappedExecutable = [System.IO.Path]::GetFileName(
-                $literalArguments[0].Replace('/', '\')
-            ).ToLowerInvariant()
+        if ($executable -in @('rustup', 'rustup.exe') -and
+            (Test-ForbiddenRustupArguments -Arguments $literalArguments)) {
+            return $true
+        }
+        if ($executable -eq 'invoke-externalcommand') {
+            $wrappedExecutable = $null
+            $wrappedArguments = @($literalArguments)
+            if ($command.CommandElements.Count -gt 1) {
+                $targetStrings = $command.CommandElements[1].FindAll(
+                    {
+                        param($candidate)
+                        $candidate -is [System.Management.Automation.Language.StringConstantExpressionAst]
+                    },
+                    $true
+                )
+                if ($targetStrings.Count -gt 0) {
+                    $wrappedExecutable = [System.IO.Path]::GetFileName(
+                        $targetStrings[0].Value.Replace('/', '\')
+                    ).ToLowerInvariant()
+                    $wrappedArguments = @(
+                        $literalArguments | Select-Object -Skip 1
+                    )
+                }
+            }
+
             if ($forbiddenExecutables -contains $wrappedExecutable) {
                 return $true
             }
             if ($wrappedExecutable -in @('cargo', 'cargo.exe') -and
-                $literalArguments.Count -gt 1 -and
-                $literalArguments[1].ToLowerInvariant() -in $forbiddenCargoCommands) {
+                (Test-ForbiddenCargoArguments -Arguments $wrappedArguments)) {
+                return $true
+            }
+            if (($wrappedExecutable -in @('rustup', 'rustup.exe') -or
+                $null -eq $wrappedExecutable) -and
+                (Test-ForbiddenRustupArguments -Arguments $wrappedArguments)) {
                 return $true
             }
         }
@@ -325,5 +378,46 @@ Test-Case 'scope guard ignores explanatory text and comments' {
 # cargo test is intentionally outside this bootstrap.
 Write-Host 'Do not run cargo build from this script.'
 "@
+    Assert-Equal $false (Test-ForbiddenVelorenSource -Source $source)
+}
+
+Test-Case 'scope guard rejects Cargo builds after a toolchain selector' {
+    Assert-True (
+        Test-ForbiddenVelorenSource -Source '& cargo.exe +nightly build'
+    )
+}
+
+Test-Case 'scope guard rejects direct Rustup Cargo builds' {
+    Assert-True (
+        Test-ForbiddenVelorenSource `
+            -Source 'rustup.exe run nightly-2026-06-13 cargo build'
+    )
+}
+
+Test-Case 'scope guard rejects wrapped Rustup Cargo builds' {
+    $source = @'
+Invoke-ExternalCommand 'rustup.exe' @('run', $pin, 'cargo', 'build')
+'@
+    Assert-True (Test-ForbiddenVelorenSource -Source $source)
+}
+
+Test-Case 'scope guard rejects direct Voxygen launches' {
+    Assert-True (
+        Test-ForbiddenVelorenSource `
+            -Source "& '.\target\debug\veloren-voxygen.exe'"
+    )
+}
+
+Test-Case 'scope guard rejects wrapped server launches' {
+    Assert-True (
+        Test-ForbiddenVelorenSource `
+            -Source "Invoke-ExternalCommand 'veloren-server-cli.exe' @()"
+    )
+}
+
+Test-Case 'scope guard permits Rustup Cargo version probes' {
+    $source = @'
+Invoke-ExternalCommand $RustupPath @('run', $pin, 'cargo', '--version')
+'@
     Assert-Equal $false (Test-ForbiddenVelorenSource -Source $source)
 }
