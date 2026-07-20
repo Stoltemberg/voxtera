@@ -1,4 +1,4 @@
-main-username = Username
+main-username = Email
 main-server = Server
 main-password = Password
 main-connecting = Connecting
@@ -25,10 +25,10 @@ main-notice =
 main-login_process =
     About multiplayer mode:
 
-    Please note that you need an account to play on servers with authentication enabled.
+    You need an account to play on multiplayer servers.
 
-    You can create an account at:
-    https://veloren.net/account/
+    Click "Criar Conta" to create an account in-game,
+    or visit the server website for more options.
 main-singleplayer-new = New
 main-singleplayer-delete = Delete
 main-singleplayer-regenerate = Regenerate

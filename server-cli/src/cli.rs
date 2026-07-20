@@ -96,7 +96,7 @@ pub enum MessageReturn {
 
 #[derive(Parser)]
 #[command(
-    name = "Veloren server TUI",
+    name = "Voxtera server TUI",
     version = common::util::DISPLAY_VERSION.as_str(),
     about = "The veloren server tui allows sending commands directly to the running server.",
     author = "The veloren devs <https://gitlab.com/veloren/veloren>",
@@ -128,7 +128,7 @@ pub enum ArgvCommand {
 
 #[derive(Parser)]
 #[command(
-    name = "Veloren server CLI",
+    name = "Voxtera server CLI",
     version = common::util::DISPLAY_VERSION.as_str(),
     about = "The veloren server cli provides an easy to use interface to start a veloren server.",
     author = "The veloren devs <https://gitlab.com/veloren/veloren>",

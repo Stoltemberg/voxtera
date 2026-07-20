@@ -3,6 +3,7 @@ mod connecting;
 //mod disclaimer;
 mod credits;
 mod login;
+mod register;
 mod servers;
 #[cfg(feature = "singleplayer")]
 mod world_selector;
@@ -42,7 +43,7 @@ pub const FILL_FRAC_TWO: f32 = 0.53;
 image_ids_ice! {
     struct Imgs {
         <ImageGraphic>
-        v_logo: "voxygen.element.v_logo",
+        voxtera_logo: "voxygen.element.voxtera_logo",
         bg: "voxygen.background.bg_main",
         banner_top: "voxygen.element.ui.generic.frames.banner_top",
         banner_gradient_bottom: "voxygen.element.ui.generic.frames.banner_gradient_bottom",
@@ -206,6 +207,10 @@ enum Screen {
     Servers {
         screen: servers::Screen,
     },
+    Register {
+        screen: register::Screen,
+        error: Option<String>,
+    },
     Connecting {
         screen: connecting::Screen,
         connection_state: ConnectionState,
@@ -287,6 +292,15 @@ enum Message {
     TrustPromptCancel,
     CloseError,
     DeleteServer,
+    Register,
+    RegisterEmail(String),
+    RegisterUsername(String),
+    RegisterPassword(String),
+    RegisterConfirmPassword(String),
+    FocusRegisterUsername,
+    FocusRegisterPassword,
+    FocusRegisterConfirmPassword,
+    RegisterSubmit,
     /* Note: Keeping in case we re-add the disclaimer
      *AcceptDisclaimer, */
 }
@@ -300,7 +314,7 @@ impl Controls {
         settings: &Settings,
         server: Option<String>,
     ) -> Self {
-        let version = format!("Veloren {}", *common::util::DISPLAY_VERSION);
+        let version = format!("Voxtera {}", *common::util::DISPLAY_VERSION);
 
         let credits = Ron::<Credits>::load_expect_cloned("credits").into_inner();
 
@@ -415,6 +429,13 @@ impl Controls {
                 &self.imgs,
                 &settings.networking.servers,
                 self.selected_server_index,
+                &self.i18n.read(),
+                button_style,
+            ),
+            Screen::Register { screen, error } => screen.view(
+                &self.fonts,
+                &self.imgs,
+                error.as_deref(),
                 &self.i18n.read(),
                 button_style,
             ),
@@ -595,8 +616,89 @@ impl Controls {
                     self.selected_server_index = None;
                 }
             },
-            /* Note: Keeping in case we re-add the disclaimer */
-            /*Message::AcceptDisclaimer => {
+            Message::Register => {
+                // Switch to registration screen
+                self.screen = Screen::Register {
+                    screen: register::Screen::default(),
+                    error: None,
+                };
+            },
+            // Handle actual registration submission
+            Message::RegisterSubmit => {
+                if let Screen::Register { screen, error } = &mut self.screen {
+                    let info = &screen.registration_info;
+                    
+                    // Validate passwords match
+                    if info.password != info.confirm_password {
+                        *error = Some("As senhas não coincidem".to_string());
+                    } else if info.email.is_empty() || info.username.is_empty() || info.password.is_empty() {
+                        *error = Some("Preencha todos os campos".to_string());
+                    } else {
+                        // Call Supabase auth client
+                        let auth_client = client::supabase_auth::SupabaseAuthClient::voxtera();
+                        match auth_client.sign_up(&info.email, &info.password, &info.username) {
+                            Ok(response) => {
+                                if response.access_token.is_some() {
+                                    // Success - switch to login screen with success message
+                                    self.screen = Screen::Login {
+                                        screen: Box::default(),
+                                        error: Some("Conta criada com sucesso! Faça login.".to_string()),
+                                    };
+                                } else {
+                                    *error = Some("Conta criada, faça login com seu email e senha.".to_string());
+                                    self.screen = Screen::Login {
+                                        screen: Box::default(),
+                                        error: Some("Conta criada! Faça login.".to_string()),
+                                    };
+                                }
+                            },
+                            Err(e) => {
+                                *error = Some(format!("Erro ao criar conta: {}", e));
+                            },
+                        }
+                    }
+                }
+            },
+            Message::RegisterEmail(email) => {
+                if let Screen::Register { screen, .. } = &mut self.screen {
+                    screen.registration_info.email = email;
+                }
+            },
+            Message::RegisterUsername(username) => {
+                if let Screen::Register { screen, .. } = &mut self.screen {
+                    screen.registration_info.username = username;
+                }
+            },
+            Message::RegisterPassword(password) => {
+                if let Screen::Register { screen, .. } = &mut self.screen {
+                    screen.registration_info.password = password;
+                }
+            },
+            Message::RegisterConfirmPassword(password) => {
+                if let Screen::Register { screen, .. } = &mut self.screen {
+                    screen.registration_info.confirm_password = password;
+                }
+            },
+            Message::FocusRegisterUsername => {
+                if let Screen::Register { screen, .. } = &mut self.screen {
+                    screen.username = text_input::State::focused();
+                    screen.email = text_input::State::new();
+                }
+            },
+            Message::FocusRegisterPassword => {
+                if let Screen::Register { screen, .. } = &mut self.screen {
+                    screen.password = text_input::State::focused();
+                    screen.username = text_input::State::new();
+                }
+            },
+            Message::FocusRegisterConfirmPassword => {
+                if let Screen::Register { screen, .. } = &mut self.screen {
+                    screen.confirm_password = text_input::State::focused();
+                    screen.password = text_input::State::new();
+                }
+            },
+            /* Note: Keeping in case we re-add the disclaimer
+             *Message::AcceptDisclaimer => {
                 if let Screen::Disclaimer { .. } = &self.screen {
                     events.push(Event::DisclaimerAccepted);
                     self.screen = Screen::Login {

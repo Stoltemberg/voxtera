@@ -1,3 +1,5 @@
+## Generic NPC messages
+
 npc-speech-villager =
     .a0 = Eu amo queijo.
 npc-speech-villager_open =
@@ -12,6 +14,20 @@ npc-speech-villager_open =
 npc-speech-villager_adventurous =
     .a0 = Espero um dia conseguir fazer meu próprio planador.
     .a1 = Eu gostaria de explorar uma caverna quando eu ficar mais forte.
+    .a2 = Ouvi dizer que há ouro, prata e diamantes nas cavernas.
+    .a3 = Assim que eu forjar um picareta, posso minerar minérios por moedas.
+    .a4 = Meu pai me disse que Trolls, Ogros e Oni vivem nas cavernas.
+    .a5 = Antílopes, kelpies e cavalos são montarias realmente rápidas.
+    .a6 = É divertido colher flores vermelhas, basta olhar nas áreas verdes.
+    .a7 = Eu amo derrubar maçãs e cocos das árvores com um arco.
+    .a8 = Raptor e axebeak possuem cristas elegantes.
+    .a9 = Eu arranco presas afiadas de lobos e dentes-de-sabre.
+    .a10 = Já viu como são fortes as pinças de uma aranha?
+    .a11 = Dreadhorn e Mammoth possuem couros realmente resistentes.
+    .a12 = Cuidado com os estilhaços gelados de frostfang, roshwalr e wendigo.
+    .a13 = Eu toso ovelhas, cabras e alpaca para lã.
+    .a14 = O fio grudento que você colhe de aranhas e rastejadores é bom para fazer bolsas.
+    .a15 = Confira as Árvores Gigantes se estiver procurando por vinhas vivas.
 npc-speech-villager_closed =
     .a0 = Você não é daqui, né?
     .a2 = Eles dizem que cogumelos são bons para sua saúde. Nunca comi.
@@ -19,12 +35,15 @@ npc-speech-villager_closed =
 npc-speech-villager_conscientious =
     .a0 = Eu me mantenho ocupado. Sempre tem algo para fazer.
     .a1 = Eu espero que chova logo. Vai ser bom para as plantações.
+    .a2 = Nós todos compartilhamos um mundo, devemos ser generosos uns com os outros.
 npc-speech-villager_busybody =
     .a0 = As pessoas deveriam falar menos e trabalharem mais.
 npc-speech-villager_unconscientious =
     .a0 = Eu acho que é hora de ter um segundo café da manhã!
     .a1 = Eu gostaria que minha casa não fosse uma bagunça. Mas para isso eu teria que arrumar! Haha!
     .a2 = Agora, onde será que eu deixei aquela coisa...
+    .a3 = Eu adoraria dirigir uma aeronave um dia.
+    .a4 = Você já quis se aposentar e colecionar queijo?
 npc-speech-villager_extroverted =
     .a0 = Você não vai acreditar no que fiz esse final de semana!
     .a1 = O melhor da manhã para você!
@@ -34,35 +53,56 @@ npc-speech-villager_extroverted =
     .a5 = Eu apenas amo queijo dos anões. Gostaria de saber fazer.
     .a6 = Eu tive um sonho maravilhoso sobre queijo ontem à noite. O que será que significa?
     .a7 = Eu amo mel! E odeio abelhas.
+    .a8 = Assim como as árvores, abelhas e estrelas, você pertence a este lugar.
 npc-speech-villager_sociable =
     .a0 = Você não vai entrar? Nos íamos comer um pouco de queijo!
     .a1 = Você gostaria de ver meu jardim? Okay, talvez outra hora.
+    .a2 = É perigoso viajar sozinho, você deveria levar um amigo.
+    .a3 = Você pode fazer amigos com respeito mútuo, companheirismo e confiança.
+    .a4 = Amizade vale mais do que todas as moedas de um mercador.
+    .a5 = O perdão para si mesmo e para os outros ajuda muito a tornar sua vida mais feliz.
 npc-speech-villager_introverted =
     .a0 = Oi.
     .a1 = Oh, Eu? Não sou nada demais.
+    .a2 = Eu vi uma fênix voando entre duas masmorras, mas ninguém acredita em mim.
+    .a3 = Eu treino todos os dias. Equipamento não é nada sem habilidade.
 npc-speech-villager_agreeable =
     .a0 = Como você está hoje?
     .a1 = Apenas me diga se precisar de algo.
     .a2 = Você viu meu gato por ai?
+    .a3 = Equilíbrio esteja com você!
 npc-speech-villager_worried =
     .a0 = Tome cuidado, OK? Tem muitas coisas perigosas por ai.
+    .a1 = Eu sempre mantenho minha lanterna por perto, as noites parecem realmente longas às vezes.
+    .a2 = Esteja pronto para desviar de ataques a todo momento!
+    .a3 = Você me protegeria se monstros, cultistas ou cultistas de monstros viessem, certo?
+    .a4 = A vida tem muitas portas e algumas você não quer abrir.
 npc-speech-villager_disagreeable =
-    .a0 = Eu falo a verdade, doa a quem doer.
-    .a1 = As pessoas são facilmente ofendidas.
+    .a0 = Se tem algo a dizer, seja rápido.
+    .a1 = Não me lembro da última vez que tive uma conversa decente.
 npc-speech-villager_neurotic =
     .a0 = Pensar nesses calabouços me deixam com medo. Espero que alguém limpe eles.
     .a1 = Alguém deveria fazer algo sobre aqueles cultistas. De preferência que não seja eu.
     .a2 = Eu tenho um pressentimento que algo ruim irá acontecer.
     .a3 = Eu gostaria que alguém mantivesse os lobos longe dessa vila.
+    .a4 = Sempre fique atento a toras, pedras e gravetos para não tropeçar.
+    .a5 = Olhe para trás para ver se está sendo seguido.
 npc-speech-villager_sad_loner =
     .a0 = Eu estou tão sozinho.
     .a1 = { "." }.. Desculpa por esse silêncio estranho. Não sou muito bom com pessoas.
+    .a2 = Quando meu gato de estimação morreu, eu nem consegui ficar com a coleira.
+    .a3 = Eu gostaria que uma vassoura voadora me levasse daqui.
+    .a4 = Será que uma poção poderia curar um coração partido?
+    .a5 = Me sinto abandonado.
 npc-speech-villager_seeker =
     .a0 = Eu quero ver o mundo um dia. Deve ter mais nessa vida do que essa vila.
+    .a1 = Ouvi dizer que todas as cavernas estão conectadas em uma vasta rede.
+    .a2 = Você conhece alguma boa receita?
 npc-speech-villager_stable =
     .a0 = Hoje não é um dia bonito?
     .a1 = A vida não é tão ruim assim.
     .a2 = Lindo dia para caminhar na floresta!
+    .a3 = Eu amo quando a vila está limpa.
 npc-speech-villager_decline_trade =
     .a0 = Desculpe, não tenho nada para trocar.
     .a1 = Troca? Como se eu tivesse algo que pudesse interessar a você.
@@ -70,10 +110,20 @@ npc-speech-villager_decline_trade =
 npc-speech-villager_busy =
     .a0 = Desculpa, não posso falar com você agora.
     .a1 = Nos falamos depois, estou ocupado.
+    .a2 = Não está vendo que estou fazendo algo?
 npc-speech-merchant_advertisement =
     .a0 = Está interessado em fazer uma troca comigo?
     .a1 = Você quer negociar comigo?
     .a2 = Eu tenho muitos produtos. Você quer dar uma olhada?
+    .a3 = Ofertas! Ofertas! Ofertas! O dia todo!
+npc-speech-merchant_busy_trading =
+    .a0 = Por favor, espere, sou apenas uma pessoa.
+    .a1 = Só um momento, me deixe terminar.
+    .a2 = Estou ocupado, volte depois.
+npc-speech-merchant_busy_combat =
+    .a0 = Espera, estou no meio disso!
+    .a1 = Não posso negociar agora, tenho inimigos para lidar!
+    .a2 = Fique longe, estou ocupado lutando pela minha vida!
 npc-speech-merchant_trade_successful =
     .a0 = Obrigado por negociar comigo!
     .a1 = Obrigado!
@@ -83,9 +133,17 @@ npc-speech-merchant_trade_declined =
 npc-speech-merchant_trade_cancelled_hostile =
     .a0 = Desculpa interromper, nós temos um problema para resolver aqui!
     .a1 = Nós fazemos negócios depois, eu preciso cuidar disso primeiro!
+npc-speech-merchant_reject_sell_item =
+    .a0 = Não estou disposto a vender esse item.
+    .a1 = Não, você não pode ficar com isso.
+npc-speech-merchant_reject_buy_item =
+    .a0 = Não estou disposto a comprar esse item.
+    .a1 = Não, não estou interessado nisso.
+npc-speech-merchant_trade_balance = Isso só cobre { $percentage }% dos meus custos!
 npc-speech-ambush =
     .a0 = Não é muito inteligente viajar sozinho!
     .a1 = Como roubar doce de criança!
+    .a2 = Pare e entregue!
 npc-speech-villager_cultist_alarm =
     .a0 = Olhe! Há um cultista à solta!
     .a1 = Às armas! Os cultistas estão atacando!
@@ -109,6 +167,50 @@ npc-speech-villager_cultist_alarm =
     .a19 = Você pagará por tudo que fez!
     .a20 = Não aceitamos bem seus tipos por aqui.
     .a21 = Você deveria ter ficado no subsolo!
+npc-speech-villager_witch_alarm =
+    .a0 = Cuidado! Há uma bruxa à solta!
+    .a1 = Às armas! Há uma bruxa entre nós!
+    .a2 = Como ousam os cultistas atacar nossa aldeia!
+    .a3 = Morte a todas as bruxas!
+    .a4 = Bruxas não serão toleradas aqui!
+    .a5 = Bruxa vil!
+    .a6 = Prove o gume da minha espada, sua bruxa suja!
+    .a7 = Suas artes negras me dão nojo!
+    .a8 = Não deixe a bruxa agarrar sua carne!
+    .a9 = Os males desta bruxa estão prestes a acabar!
+    .a10 = Esta bruxa é minha!
+    .a11 = Prepare-se para encontrar o seu criador, vil cultista!
+    .a12 = Vejo uma bruxa! Pegue-a!
+    .a13 = Vejo uma bruxa! Queimem-na!
+    .a14 = Vejo uma bruxa! Não a deixe escapar!
+    .a15 = Que poções terríveis você concoctará com seus tritões e gosma?!
+    .a16 = Pessoas como você deveriam ser queimadas na fogueira!
+    .a17 = Morra, bruxa!
+    .a18 = Você não mais aterrorizará nossos jovens!
+    .a19 = Você pagará por tudo que fez!
+    .a20 = Não aceitamos bem seus tipos por aqui.
+    .a21 = Você deveria ter ficado nos abismos do submundo!
+npc-speech-villager_pirate_alarm =
+    .a0 = Cuidado! Há um pirata à solta!
+    .a1 = Às armas! Há um pirata entre nós!
+    .a2 = Como ousam esses piratas atacar nossa aldeia!
+    .a3 = Morte a esses ladrões vis!
+    .a4 = Piratas não serão tolerados aqui!
+    .a5 = Pirata vil!
+    .a6 = Prove o gume da minha espada, seu pirata sujo!
+    .a7 = De volta ao mar com você!
+    .a8 = Protejam suas bolsas!
+    .a9 = Bandidos como você deveriam ser enforcados!
+    .a10 = Este pirata é meu!
+    .a11 = Prepare-se para encontrar o seu criador, vil pirata!
+    .a12 = Vejo um pirata de vigia! Matem-no antes que avise os outros!
+    .a13 = Vejo um pirata! Não o deixe escapar!
+    .a14 = Devolva o tesouro que roubou!
+    .a15 = Pessoas como você deveriam ser jogadas aos tubarões!
+    .a16 = Morra, pirata!
+    .a17 = Você pagará por tudo que fez!
+    .a18 = Não aceitamos bem seus tipos por aqui.
+    .a19 = Você deveria ter ficado naquele barco cambaleante que chama de navio!
 npc-speech-villager_under_attack =
     .a0 = Ajuda, Estou sendo atacado!
     .a1 = Ajuda! Estou sendo atacado!
@@ -194,6 +296,9 @@ npc-speech-villager_enemy_killed =
     .a0 = Destruí meu inimigo!
     .a1 = Finalmente em paz!
     .a2 = { "." }.. agora, o que eu estava fazendo?
+    .a3 = Sinto muito que tenha acabado assim.
+npc-speech-remembers-fight = { $name }! Como ousa cruzar meu caminho de novo!
+npc-speech-remembers-fight-no-name = Você! Como ousa cruzar meu caminho de novo!
 npc-speech-menacing =
     .a0 = Estou te avisando!
     .a1 = Se chegar mais perto eu ataco!
@@ -210,6 +315,7 @@ npc-speech-cultist_low_health_fleeing =
     .a5 = Eles são muito fortes!
 npc-speech-moving_on =
     .a0 = Já passei tempo suficiente aqui, vou para { $site }!
+    .a1 = Espero encontrar uma aeronave indo para { $site }.
 npc-speech-migrating =
     .a0 = Não estou mais feliz vivendo aqui. Hora de ir para { $site }.
     .a1 = Hora de ir para { $site }, já estou cheio deste lugar.
@@ -217,15 +323,21 @@ npc-speech-night_time =
     .a0 = Está escuro, acho que devo voltar para casa.
     .a1 = Estou cansado...
     .a2 = Minha cama está me chamando...
+    .a3 = Ainda bem que tenho minha lanterna!
 npc-speech-day_time =
     .a0 = Um novo dia começa!
     .a1 = Uh, eu nunca gostei de acordar...
+npc-speech-seeking_shelter_rain = Está começando a chover, devo procurar abrigo.
+npc-speech-rain_stopped = A chuva parou, de volta ao trabalho!
 npc-speech-start_hunting =
     .a0 = Hora de caçar!
+    .a1 = Animais pequenos soltam couro animal.
 npc-speech-guard_thought =
     .a0 = Meu irmão está lutando com ogros. E eu? De guarda...
     .a1 = Só mais uma ronda e eu vou para casa.
     .a2 = Nenhum bandido vai passar por mim!
+    .a3 = Preciso aprender a acertar e não ser acertado.
+    .a4 = Preciso praticar desviar de ataques no meu tempo livre.
 npc-speech-merchant_sell_undirected =
     .a0 = Apenas altíssima qualidade!
     .a1 = Alguém quer comprar algo?
@@ -235,26 +347,40 @@ npc-speech-merchant_sell_directed =
     .a0 = Você aí! Tá precisando de um novo treco?!
     .a1 = Tá com fome? Tenho certeza que tenho queijo pra vender...
     .a2 = Tá precisando de uma nova armadura?! Tenho as melhores!
+npc-speech-wait_for_me =
+    .a0 = Espere por mim!
+    .a1 = Você está rápido demais para mim!
+    .a2 = Me dê uma chance de alcançá-lo!
+
+## NPC site hints
+## Available variables:
+## - $dir references npc-speech-dir-* variables below
+## - $dist references npc-speech-dist-* variables below
+## - $site represents hard-coded site in the world
+
 npc-speech-tell_site =
     .a0 = Há { $site } a { $dir } daqui. Você já visitou?
     .a1 = Você deveria ir para { $site } qualquer hora...
     .a2 = Se você for { $dist } para { $dir }, consegue chegar em { $site }.
     .a3 = Para o { $dir } você encontra { $site }, é { $dist }.
+
+npc-speech-site =
+    .a0 = Você não acha que nossa aldeia é a melhor delas?
+    .a1 = Bem-vindo a { $site } !
+    .a2 = { $site } é uma aldeia agradável para viver.
+
+## NPC monster hints
+## Available variables:
+## - $dir references npc-speech-dir-* variables below
+## - $dist references npc-speech-dist-* variables below
+## - $body references body-npc-speech-* variables in `body` component
+
 npc-speech-tell_monster =
     .a0 = Dizem que há um(a) { $body } ao { $dir }, { $dist }...
     .a1 = Acha que é capaz? Para o { $dir } tem um(a) { $body }.
-npc-speech-witness_murder =
-    .a0 = Assassino!
-    .a1 = Como pôde fazer isso?!
-    .a2 = Aaargh!
-npc-speech-witness_enemy_murder =
-    .a0 = Meu herói!
-    .a1 = Finalmente alguém fez o trabalho.
-    .a2 = Boa!
-npc-speech-witness_death =
-    .a0 = Não!
-    .a1 = Isso é terrível!
-    .a2 = Meu Deus!
+
+## Direction hints, used ONLY in npc-speech-tell* above
+
 npc-speech-dir_north = para o norte
 npc-speech-dir_north_east = para o nordeste
 npc-speech-dir_east = para o leste
@@ -263,29 +389,216 @@ npc-speech-dir_south = para o sul
 npc-speech-dir_south_west = para o sudoeste
 npc-speech-dir_west = para o oeste
 npc-speech-dir_north_west = para o noroeste
+
+## Distance hints, used ONLY in npc-speech-tell* above
+
 npc-speech-dist_very_far = muito longe
 npc-speech-dist_far = longe
 npc-speech-dist_ahead = um pouco longe
 npc-speech-dist_near = perto
 npc-speech-dist_near_to = muito perto
-# NPC site hints
-# Available variables:
-# - $dir references npc-speech-dir-* variables below
-# - $dist references npc-speech-dist-* variables below
-# - $site represents hard-coded site in the world
-npc-speech-site =
-    .a0 = Você não acha que nossa aldeia é a melhor delas?
-    .a1 = Bem-vindo a { $site } !
-    .a2 = { $site } é uma aldeia agradável para viver.
-# NPC reactions
+
+## NPC proposals
+
+npc-speech-arena = Vamos sentar ali!
+
+## NPC dialogue
+
+npc-goodbye =
+    .a0 = Até mais!
+    .a1 = Tchau!
+    .a2 = Adeus!
+    .a3 = Depois!
+
+npc-question-general =
+    .a0 = O que posso fazer por você?
+    .a1 = Boa dia. O que aconteceu?
+    .a2 = Olá, com o que posso ajudar?
+
+npc-info-current_site =
+    .a0 = Aqui é { $site }.
+    .a1 = Você está em { $site }.
+npc-info-self_name =
+    .a0 = Meu nome é { $name }.
+    .a1 = Me chamam de { $name }.
+    .a2 = Meu nome é { $name }.
+npc-info-self_home =
+    .a0 = Eu moro em { $site }.
+    .a1 = Minha casa é em { $site }.
+npc-info-self_homeless =
+    .a0 = Eu não tenho casa.
+    .a1 = Eu não tenho um lugar para chamar de lar.
+npc-info-role =
+    .a0 = Eu sou { $role }.
+    .a1 = Eu trabalho como { $role }.
+    .a2 = Minha profissão é { $role }.
+noun-role-none =
+    .a0 = Sou um espírito livre.
+npc-info-unknown =
+    .a0 = Eu não sei.
+    .a1 = Não tenho certeza.
+
+npc-response-hire_time = Por quanto tempo você quer me contratar?
+npc-response-accept_hire =
+    .a0 = Vamos lá!
+    .a1 = Estou pronto, siga em frente!
+npc-response-decline_hire =
+    .a0 = Desculpe, não tenho tempo agora.
+    .a1 = Não obrigado, desculpe.
+npc-response-already_hired = Não seja bobo, você já me contratou!
+npc-dialogue-hire_cancelled = Tudo bem, até mais!
+npc-dialogue-hire_expired =
+    .a0 = Está na hora de eu deixar seu serviço. Até mais!
+    .a1 = Meu serviço acabou, vou seguir meu caminho agora. Adeus!
+npc-dialogue-hire_cancelled_unhappy = Não consigo continuar trabalhando para você de boa consciência. Adeus.
+npc-dialogue-hire_arrive_tavern = Vou ficar na { $tavern } por um tempo, até mais!
+npc-response-no_problem = Sem problemas! Até mais.
+
+npc-response-quest-nothing =
+    .a0 = Nada por agora, desculpe.
+    .a1 = Agora não.
+    .a2 = Talvez depois!
+npc-response-quest-rejected =
+    .a0 = Tanto faz! Você que sabe.
+    .a1 = Não é problema meu.
+    .a2 = Mendigos não podem ser exigentes. Pare de desperdiçar meu tempo!
+npc-response-quest-reward =
+    .a0 = Aqui está sua recompensa.
+    .a1 = Aqui está o pagamento pelos seus esforços.
+npc-response-quest-timeout =
+    .a0 = Seu tempo acabou, nosso acordo foi cancelado!
+    .a1 = Acabou o tempo, sem dinheiro para você!
+
+npc-response-quest-escort-ask =
+    .a0 = Poderia me levar até { $dst }? Pago { $coins } moedas! Preciso chegar lá em { $mins } minutos!
+    .a1 = Quero ir para { $dst } nos próximos { $mins } minutos. Poderia me levar por { $coins } moedas?
+npc-response-quest-escort-start =
+    .a0 = Siga em frente então! Marquei o lugar no seu mapa.
+    .a1 = Excelente. Você encontrará o destino no seu mapa. Você primeiro, eu sigo atrás.
+npc-response-quest-escort-where =
+    .a0 = Estamos indo para { $dst }.
+    .a1 = Estou tentando chegar em { $dst }.
+    .a2 = Estamos indo para { $dst }, certo?
+npc-response-quest-escort-complete =
+    .a0 = Chegamos. Obrigado!
+    .a1 = Obrigado por me trazer aqui. Até mais!
+
+npc-response-quest-slay-ask =
+    .a0 = As pessoas aqui estão sendo aterrorizadas por { $body }! Deve ser morto! Pago { $coins } moedas pelo serviço.
+    .a1 = Não muito longe daqui, { $body } espreita. Não podemos viver assim! { $coins } moedas estão sendo oferecidas se você fizer o serviço!
+npc-response-quest-slay-start =
+    .a0 = Marquei a última localização conhecida da besta no seu mapa.
+    .a1 = Marquei seu mapa para que saiba onde ir.
+npc-response-quest-slay-start_2 = Se não me encontrar, pode pedir direções a outra pessoa.
+npc-response-quest-slay-start_3 =
+    .a0 = Cuidado! A besta está em movimento e pode não ficar por muito tempo. Pergunte por aí se perder o rastro!
+    .a1 = A criatura não vai ficar por muito tempo. Se perder o rastro, pode pedir direções por aí.
+npc-response-quest-slay-start_4 =
+    .a0 = Volte quando o serviço estiver feito e receberá seu pagamento.
+    .a1 = Boa sorte! Seu pagamento estará esperando quando voltar!
+npc-response-quest-slay-where = Atualizei a localização do monstro no seu mapa.
+npc-response-quest-slay-thanks =
+    .a0 = Obrigado! As pessoas aqui estarão seguras novamente.
+    .a1 = Você tem minha gratidão... e meu dinheiro!
+    .a2 = Você nos fez um enorme favor, muito obrigado.
+
+npc-response-like_you =
+    .a0 = Eu gosto de você!
+    .a1 = Você parece um bom amigo.
+    .a2 = Acho que você é amigável.
+npc-response-ambivalent_you =
+    .a0 = Você parece bem.
+    .a1 = Não tenho sentimentos fortes, na verdade.
+npc-response-dislike_you =
+    .a0 = Eu não gosto muito de você.
+    .a1 = Você não parece muito legal.
+
+npc-question-directions =
+    .a0 = Para onde você quer ir?
+    .a1 = O que você está procurando?
+npc-response-directions = Marquei seu mapa. Boa sorte!
+npc-response-doesnt_exist = Não temos um dessas por aqui.
+
+## NPC reactions
+
+npc-speech-witness_murder =
+    .a0 = Assassino!
+    .a1 = Como pôde fazer isso?!
+    .a2 = Aaargh!
+npc-speech-witness_theft =
+    .a0 = Isso não é seu!
+    .a1 = Mantenha suas mãos para si.
+    .a2 = Não toque nisso!
+    .a3 = Ladrão!
+    .a4 = Devolva isso.
+    .a5 = O que você pensa que está fazendo?
+    .a6 = Pare ou vou chamar os guardas.
+npc-speech-witness_theft_owned =
+    .a0 = Ei! Isso é meu.
+    .a1 = Por que está tocando nas minhas coisas?
+    .a2 = Você não é bem-vindo aqui se levar minhas coisas.
+npc-speech-witness_enemy_murder =
+    .a0 = Meu herói!
+    .a1 = Finalmente alguém fez o trabalho.
+    .a2 = Boa!
+npc-speech-witness_death =
+    .a0 = Não!
+    .a1 = Isso é terrível!
+    .a2 = Meu Deus!
+    .a3 = O mundo está um pouco mais escuro agora.
 npc-speech-welcome-aboard =
     .a0 = Bem-vindo a bordo!
     .a1 = Posso ver seu bilhete... to zoando, é grátis!
     .a2 = Tenha uma ótima viagem!
-# NPC reactions
 npc-speech-night =
     .a0 = Lamparinas são úteis durante a noite!
     .a1 = Espero que estejamos sozinhos no escuro...
     .a2 = Boo!
-# NPC proposals
-npc-speech-arena = Vamos sentar ali!
+npc-speech-thank_you =
+    .a0 = Valeu!
+    .a1 = Obrigado
+npc-speech-reject_rival =
+    .a0 = Você não é bem-vindo aqui.
+    .a1 = Desculpe, não quero falar com você.
+    .a2 = Você deveria ir embora.
+npc-speech-where_are_we_going_wrong_profession =
+    .a0 = Espera, o quê? Não acho que eu deveria estar levando você a lugar algum.
+    .a1 = Huh? Por que eu estaria te levando a algum lugar?
+
+## NPC pilot dialogue
+
+npc-speech-pilot-takeoff =
+    .a0 = Rumo a { $dst }!
+    .a1 = Lá vamos nós!
+    .a2 = Próxima parada, { $dst }!
+    .a3 = Adeus, { $src }!
+npc-speech-pilot-landed =
+    .a0 = Mais um pouso tranquilo.
+    .a1 = Com calma...
+    .a2 = Trabalho impecável.
+    .a3 = Essa é sua parada?
+npc-speech-pilot-announce_next =
+    .a0 = Embarque se estiver indo para { $dir } rumo a { $dst }!
+    .a1 = Navegamos para { $dst } em breve!
+    .a2 = Viajando para { $dir }? Embarque!
+npc-speech-pilot-where_heading_now =
+    .a0 = Estamos indo { $dir } para { $dst }! Depois disso, estamos indo { $ndir } para { $ndst }.
+    .a1 = Estou nos levando { $dir } para { $dst } primeiro, depois { $ndir } para { $ndst }.
+    .a2 = Primeiro voamos { $dir } para { $dst }, e depois seguiremos { $ndir } para { $ndst }.
+npc-speech-pilot-unknown_destination =
+    .a0 = Na verdade não tenho certeza de onde estamos indo.
+    .a1 = Perdi a noção de para onde estamos indo, infelizmente...
+    .a2 = Não consigo me lembrar! Desculpe.
+
+npc-speech-pirate =
+    .a0 = Yarrr!
+    .a2 = Marujos, vamos celebrar!
+    .a3 = O que faremos com um marinheiro bêbado~
+npc-speech-pirate_raid =
+    .a0 = Venha saquear { $site } comigo.
+    .a1 = Venha pilhar { $site } marujo.
+    .a2 = Vamos pilhar { $site }.
+
+## Signs
+
+npc-signs-keep_out =  Não Entre!

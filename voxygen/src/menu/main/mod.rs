@@ -717,40 +717,17 @@ fn get_client_init_msg_error(
 }
 
 fn attempt_login(
-    info_message: &mut Option<String>,
+    _info_message: &mut Option<String>,
     username: String,
     password: String,
     connection_args: ConnectionArgs,
     init: &mut InitState,
     runtime: &Arc<runtime::Runtime>,
     locale: Option<String>,
-    localized_strings: &LocalizationHandle,
+    _localized_strings: &LocalizationHandle,
     config_dir: &Path,
     client_type: ClientType,
 ) {
-    let localization = localized_strings.read();
-    if let Err(err) = comp::Player::alias_validate(&username) {
-        match err {
-            comp::AliasError::ForbiddenCharacters => {
-                *info_message = Some(
-                    localization
-                        .get_msg("main-login-username_bad_characters")
-                        .into_owned(),
-                );
-            },
-            comp::AliasError::TooLong => {
-                *info_message = Some(
-                    localization
-                        .get_msg_ctx("main-login-username_too_long", &i18n::fluent_args! {
-                            "max_len" => comp::MAX_ALIAS_LEN
-                        })
-                        .into_owned(),
-                );
-            },
-        }
-        return;
-    }
-
     // Don't try to connect if there is already a connection in progress.
     if let InitState::None = init {
         *init = InitState::Client(ClientInit::new(

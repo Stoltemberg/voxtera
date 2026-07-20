@@ -1,4 +1,4 @@
-main-username = Nome de Usuário
+main-username = Email
 main-server = Servidor
 main-password = Senha
 main-connecting = Conectando
@@ -25,10 +25,10 @@ main-notice =
 main-login_process =
     Sobre o modo multijogador:
 
-    Por favor, note que você precisa de uma conta para jogar em servidores com autenticação ativada.
+    Você precisa de uma conta para jogar em servidores multiplayer.
 
-    Você pode criar uma conta em:
-    https://veloren.net/account/
+    Clique em "Criar Conta" para criar uma conta no jogo,
+    ou visite o site do servidor para mais opções.
 main-login-server_not_found = Servidor não encontrado.
 main-login-authentication_error = Erro de autenticação no servidor.
 main-login-internal_error = Erro interno no cliente. Dica: Provavelmente o personagem do jogador foi deletado.

@@ -184,15 +184,15 @@ impl Screen {
             .center_x()
             .center_y();
 
-        let v_logo = Container::new(Image::new(imgs.v_logo).fix_aspect_ratio())
-            .padding(3)
-            .width(Length::Units(230));
+        let voxtera_logo = Image::new(imgs.voxtera_logo)
+            .width(Length::Units(350))
+            .fix_aspect_ratio();
 
         let version_stage =
             Text::new(common::util::VELOREN_VERSION_STAGE).size(fonts.cyri.scale(22));
 
         let right_column = Container::new(
-            Column::with_children(vec![v_logo.into(), version_stage.into()])
+            Column::with_children(vec![voxtera_logo.into(), version_stage.into()])
                 .align_items(Align::Center),
         )
         .width(Length::Fill)
@@ -330,6 +330,7 @@ pub struct LoginBanner {
     singleplayer_button: button::State,
 
     unlock_server_field_button: button::State,
+    register_button: button::State,
 }
 
 impl LoginBanner {
@@ -439,6 +440,13 @@ impl LoginBanner {
                     FILL_FRAC_TWO,
                     button_style,
                     Some(Message::Multiplayer),
+                ),
+                neat_button(
+                    &mut self.register_button,
+                    "Criar Conta",  // TODO: Add to i18n
+                    FILL_FRAC_TWO,
+                    button_style,
+                    Some(Message::Register),
                 ),
                 #[cfg(feature = "singleplayer")]
                 neat_button(

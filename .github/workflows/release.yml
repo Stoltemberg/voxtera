@@ -1,0 +1,71 @@
+name: Release Voxtera
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Csymbol-mangling-version=v0"
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-06-13-x86_64-pc-windows-msvc
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build release binaries
+        run: cargo build --release --bin Voxtera --bin veloren-server-cli
+
+      - name: Package release ZIP
+        shell: pwsh
+        run: |
+          $staging = "voxtera-release"
+          New-Item -ItemType Directory -Path $staging -Force
+
+          # Copy binaries
+          Copy-Item "target/release/Voxtera.exe" $staging/
+          Copy-Item "target/release/veloren-server-cli.exe" $staging/
+
+          # Copy assets folder
+          Copy-Item -Recurse "assets" $staging/assets
+
+          # Copy settings file
+          if (Test-Path "settings.ron") { Copy-Item "settings.ron" $staging/ }
+
+          # Create ZIP
+          Compress-Archive -Path "$staging/*" -DestinationPath "voxtera-windows-x64.zip"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Voxtera Build ${{ github.run_number }}
+          body: |
+            Automated release from commit ${{ github.sha }}
+
+            **Contents:**
+            - Voxtera.exe — game client
+            - veloren-server-cli.exe — dedicated server
+            - assets/ — game assets
+          files: voxtera-windows-x64.zip
+          draft: false
+          prerelease: true

@@ -3,6 +3,7 @@
 
 pub mod addr;
 pub mod error;
+pub mod supabase_auth;
 
 // Reexports
 pub use crate::error::Error;
@@ -1146,25 +1147,42 @@ impl Client {
             Some(addr) => {
                 // Query whether this is a trusted auth server
                 if auth_trusted(addr) {
-                    let (scheme, authority) = match addr.split_once("://") {
-                        Some((s, a)) => (s, a),
-                        None => return Err(Error::AuthServerUrlInvalid(addr.to_string())),
-                    };
+                    // Check if this is a Supabase auth server
+                    if addr.contains("supabase.co") {
+                        // Use Supabase auth client (synchronous, runs in blocking context)
+                        let supabase_client = crate::supabase_auth::SupabaseAuthClient::voxtera();
+                        match supabase_client.sign_in(username, password) {
+                            Ok(response) => {
+                                if let Some(token) = response.access_token {
+                                    Ok(token)
+                                } else {
+                                    Err(Error::AuthErr("No access token in Supabase response".to_string()))
+                                }
+                            },
+                            Err(e) => Err(Error::AuthErr(format!("Supabase auth failed: {}", e))),
+                        }
+                    } else {
+                        // Standard authc flow
+                        let (scheme, authority) = match addr.split_once("://") {
+                            Some((s, a)) => (s, a),
+                            None => return Err(Error::AuthServerUrlInvalid(addr.to_string())),
+                        };
 
-                    let scheme = match scheme.parse::<authc::Scheme>() {
-                        Ok(s) => s,
-                        Err(_) => return Err(Error::AuthServerUrlInvalid(addr.to_string())),
-                    };
+                        let scheme = match scheme.parse::<authc::Scheme>() {
+                            Ok(s) => s,
+                            Err(_) => return Err(Error::AuthServerUrlInvalid(addr.to_string())),
+                        };
 
-                    let authority = match authority.parse::<authc::Authority>() {
-                        Ok(a) => a,
-                        Err(_) => return Err(Error::AuthServerUrlInvalid(addr.to_string())),
-                    };
+                        let authority = match authority.parse::<authc::Authority>() {
+                            Ok(a) => a,
+                            Err(_) => return Err(Error::AuthServerUrlInvalid(addr.to_string())),
+                        };
 
-                    Ok(authc::AuthClient::new(scheme, authority)?
-                        .sign_in(username, password)
-                        .await?
-                        .serialize())
+                        Ok(authc::AuthClient::new(scheme, authority)?
+                            .sign_in(username, password)
+                            .await?
+                            .serialize())
+                    }
                 } else {
                     Err(Error::AuthServerNotTrusted)
                 }
@@ -3602,7 +3620,7 @@ mod tests {
         let runtime2 = Arc::clone(&runtime);
         let username = "Foo";
         let password = "Bar";
-        let auth_server = "auth.veloren.net";
+        let auth_server = "gcfavlnisyhdwseuvzpd.supabase.co";
         let veloren_client: Result<Client, Error> = runtime.block_on(Client::new(
             ConnectionArgs::Tcp {
                 hostname: "127.0.0.1:9000".to_owned(),

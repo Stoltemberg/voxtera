@@ -54,7 +54,13 @@ void main() {
     } */
     vec3 wpos = cam_pos.xyz + /*normalize(f_pos)*/cam_dir * dist;
 
-    tgt_color = vec4(cam_attenuation * get_sky_color(normalize(f_pos), cam_pos.xyz, wpos, 1.0, true, refractionIndex, false, 1.0), 1.0);
+    // Voxtera: Enhanced sky color
+    vec3 sky_col = cam_attenuation * get_sky_color(normalize(f_pos), cam_pos.xyz, wpos, 1.0, true, refractionIndex, false, 1.0);
+    
+    // Subtle blue boost for more vibrant sky
+    sky_col.b = sky_col.b * 1.05;
+    
+    tgt_color = vec4(sky_col, 1.0);
     tgt_mat = uvec4(uvec3(0), MAT_SKY);
 #endif
 }

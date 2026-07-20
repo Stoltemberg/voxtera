@@ -112,7 +112,7 @@ pub use self::{
     },
     stats::{Stats, StatsModifier},
     teleport::Teleporting,
-    visual::{FrontendMarker, LightAnimation, LightEmitter},
+    visual::{FrontendMarker, HitFlash, LightAnimation, LightEmitter},
 };
 pub use common_i18n::{Content, LocalizationArg};
 

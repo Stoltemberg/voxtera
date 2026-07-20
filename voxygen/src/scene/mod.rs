@@ -9,6 +9,7 @@ pub mod smoke_cycle;
 pub mod terrain;
 pub mod tether;
 pub mod trail;
+pub mod loot_glow;
 
 use std::collections::HashSet;
 
@@ -121,6 +122,7 @@ pub struct Scene {
 
     particle_mgr: ParticleMgr,
     trail_mgr: TrailMgr,
+    loot_glow_mgr: loot_glow::LootGlowSystem,
     figure_mgr: FigureMgr,
     tether_mgr: TetherMgr,
     pub sfx_mgr: SfxMgr,
@@ -365,6 +367,7 @@ impl Scene {
             light_data: Vec::new(),
             particle_mgr: ParticleMgr::new(renderer),
             trail_mgr: TrailMgr::default(),
+            loot_glow_mgr: loot_glow::LootGlowSystem::default(),
             figure_mgr: FigureMgr::new(renderer),
             tether_mgr: TetherMgr::new(renderer),
             sfx_mgr: SfxMgr::default(),
@@ -787,6 +790,18 @@ impl Scene {
 
         // Maintain the trails.
         self.trail_mgr.maintain(renderer, scene_data);
+
+        // Maintain loot glow effects
+        let loot_viewpoint_pos = {
+            let interp = scene_data.state.ecs().read_storage::<crate::ecs::comp::Interpolated>();
+            interp.get(scene_data.viewpoint_entity).map(|i| i.pos).unwrap_or_default()
+        };
+        let loot_glow_lights = self.loot_glow_mgr.maintain(
+            scene_data.state,
+            1.0 / 60.0,
+            loot_viewpoint_pos,
+        );
+        lights.extend(loot_glow_lights);
 
         // Update light constants
         let max_light_dist = loaded_distance.powi(2) + LIGHT_DIST_RADIUS;

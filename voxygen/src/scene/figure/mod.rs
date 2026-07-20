@@ -52,7 +52,7 @@ use anim::{
 };
 use common::{
     comp::{
-        self, Body, CharacterActivity, CharacterState, Collider, Controller, Health, Inventory,
+        self, Body, CharacterActivity, CharacterState, Collider, Controller, Health, HitFlash, Inventory,
         ItemKey, Last, LightAnimation, LightEmitter, Object, Ori, PhysicsState, PickupItem,
         PoiseState, Pos, Scale, ThrownItem, Vel,
         body::{self, parts::HeadState},
@@ -552,6 +552,7 @@ struct FigureReadData<'a> {
     last_character_states: ReadStorage<'a, Last<CharacterState>>,
     physics_states: ReadStorage<'a, PhysicsState>,
     healths: ReadStorage<'a, Health>,
+    hit_flashes: ReadStorage<'a, HitFlash>,
     inventories: ReadStorage<'a, Inventory>,
     pickup_items: ReadStorage<'a, PickupItem>,
     thrown_items: ReadStorage<'a, ThrownItem>,
@@ -601,6 +602,7 @@ impl FigureReadData<'_> {
             last_character_state: self.last_character_states.get(entity),
             physics_state: self.physics_states.get(entity)?,
             health: self.healths.get(entity),
+            hit_flash: self.hit_flashes.get(entity),
             inventory: self.inventories.get(entity),
             pickup_item: self.pickup_items.get(entity),
             thrown_item: self.thrown_items.get(entity),
@@ -628,6 +630,7 @@ impl FigureReadData<'_> {
             self.last_character_states.maybe(),
             &self.physics_states,
             self.healths.maybe(),
+            self.hit_flashes.maybe(),
             self.inventories.maybe(),
             self.pickup_items.maybe(),
             (
@@ -656,6 +659,7 @@ impl FigureReadData<'_> {
                     last_character_state,
                     physics_state,
                     health,
+                    hit_flash,
                     inventory,
                     pickup_item,
                     (
@@ -681,6 +685,7 @@ impl FigureReadData<'_> {
                     last_character_state,
                     physics_state,
                     health,
+                    hit_flash,
                     inventory,
                     pickup_item,
                     thrown_item,
@@ -709,6 +714,7 @@ struct FigureUpdateParams<'a> {
     last_character_state: Option<&'a Last<CharacterState>>,
     physics_state: &'a PhysicsState,
     health: Option<&'a Health>,
+    hit_flash: Option<&'a HitFlash>,
     inventory: Option<&'a Inventory>,
     pickup_item: Option<&'a PickupItem>,
     thrown_item: Option<&'a ThrownItem>,
@@ -1205,6 +1211,7 @@ impl FigureMgr {
             last_character_state: last_character,
             physics_state: physics,
             health,
+            hit_flash,
             inventory,
             pickup_item: item,
             thrown_item,
@@ -1329,6 +1336,20 @@ impl FigureMgr {
             } else {
                 Rgba::one()
             };
+
+        // Apply HitFlash effect (adds color overlay on hit)
+        let col = if let Some(flash) = hit_flash {
+            let flash_intensity = flash.intensity * (flash.timer / 0.15).clamp(0.0, 1.0);
+            let flash_rgba = Rgba::new(
+                flash.col.r * flash_intensity,
+                flash.col.g * flash_intensity,
+                flash.col.b * flash_intensity,
+                0.0,
+            );
+            col + flash_rgba
+        } else {
+            col
+        };
 
         let scale = scale.map(|s| s.0).unwrap_or(1.0);
 

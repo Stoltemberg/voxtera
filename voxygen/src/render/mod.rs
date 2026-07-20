@@ -231,7 +231,7 @@ pub struct ShadowMapMode {
 }
 
 impl Default for ShadowMapMode {
-    fn default() -> Self { Self { resolution: 1.0 } }
+    fn default() -> Self { Self { resolution: 1.5 } }  // Voxtera: Higher default shadow resolution
 }
 
 /// Shadow modes
@@ -338,9 +338,9 @@ impl BloomFactor {
     /// Fraction of output image luminosity that is blurred bloom
     pub fn fraction(self) -> f32 {
         match self {
-            Self::Low => 0.1,
-            Self::Medium => 0.2,
-            Self::High => 0.3,
+            Self::Low => 0.15,  // Voxtera: Slightly increased low bloom
+            Self::Medium => 0.25,  // Voxtera: Increased medium bloom
+            Self::High => 0.35,  // Voxtera: Increased high bloom
             Self::Custom(val) => val.clamp(0.0, 1.0),
         }
     }

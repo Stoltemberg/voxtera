@@ -21,9 +21,9 @@ impl Default for NetworkingSettings {
     fn default() -> Self {
         Self {
             username: "".to_string(),
-            servers: vec!["server.veloren.net".to_string()],
-            default_server: "server.veloren.net".to_string(),
-            trusted_auth_servers: ["https://auth.veloren.net"]
+            servers: vec!["server.voxtera.net".to_string()],
+            default_server: "server.voxtera.net".to_string(),
+            trusted_auth_servers: ["https://gcfavlnisyhdwseuvzpd.supabase.co"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),

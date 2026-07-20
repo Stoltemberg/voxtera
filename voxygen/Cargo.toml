@@ -3,7 +3,7 @@ name = "veloren-voxygen"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-default-run = "veloren-voxygen"
+default-run = "Voxtera"
 # Cargo thinks it should build the voxygen binary even when a specific bench is specified for building
 # Uncomment below and comment out default-run if you want to avoid this
 # autobins = false
@@ -167,6 +167,10 @@ rayon = { workspace = true }
 [[bench]]
 harness = false
 name = "meshing_benchmark"
+
+[[bin]]
+name = "Voxtera"
+path = "src/main.rs"
 
 [[bin]]
 name = "img_export"

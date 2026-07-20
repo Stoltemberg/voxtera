@@ -1,0 +1,618 @@
+//! Friends system for Voxtera
+//!
+//! Provides friend request, accept, and list functionality.
+//! Tracks online players and notifies friends when someone comes online.
+
+use common::{
+    comp::{ChatType, Content},
+    uuid::Uuid,
+};
+use common_net::msg::ServerGeneral;
+use hashbrown::{HashMap, HashSet};
+use specs::{Entity as EcsEntity, WorldExt};
+use tracing::{debug, info};
+
+// ---------------------------------------------------------------------------
+// Data types
+// ---------------------------------------------------------------------------
+
+/// Status of a friend relationship from a player's perspective.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum FriendStatus {
+    /// We sent a request and are waiting for them to accept.
+    PendingOutgoing,
+    /// They sent us a request and we haven't accepted yet.
+    PendingIncoming,
+    /// An accepted friend.
+    Accepted,
+}
+
+/// A single friend entry stored per player.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct FriendEntry {
+    pub uuid: Uuid,
+    pub alias: String,
+    pub status: FriendStatus,
+}
+
+/// Result of a friend list query.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct FriendListResult {
+    pub friends: Vec<FriendEntry>,
+}
+
+/// Result of sending a friend request.
+#[derive(Clone, Debug)]
+pub enum FriendRequestResult {
+    /// Request sent successfully.
+    Sent { to_alias: String },
+    /// Target player not found (alias not registered).
+    PlayerNotFound,
+    /// Already friends with this player.
+    AlreadyFriends { alias: String },
+    /// A pending request already exists in this direction.
+    AlreadyPending { alias: String },
+    /// Cannot send a friend request to yourself.
+    CannotFriendSelf,
+}
+
+/// Result of accepting a friend request.
+#[derive(Clone, Debug)]
+pub enum FriendAcceptResult {
+    /// Friend request accepted.
+    Accepted { alias: String },
+    /// No pending incoming request from that player.
+    NoPendingRequest,
+    /// Player not found.
+    PlayerNotFound,
+}
+
+/// Result of rejecting / removing a friend.
+#[derive(Clone, Debug)]
+pub enum FriendRemoveResult {
+    Removed { alias: String },
+    NotFriends,
+    PlayerNotFound,
+}
+
+// ---------------------------------------------------------------------------
+// ECS Resource
+// ---------------------------------------------------------------------------
+
+/// Central friends resource inserted into the ECS world.
+///
+/// Stores friend lists per-player UUID, tracks which players are currently
+/// online, and maps ECS entities ↔ UUIDs so we can send notifications.
+///
+/// Insert into the ECS world during server init:
+/// ```ignore
+/// state.ecs_mut().insert(FriendsResource::default());
+/// ```
+pub struct FriendsResource {
+    /// uuid → list of friend entries (includes both pending and accepted).
+    friend_lists: HashMap<Uuid, Vec<FriendEntry>>,
+
+    /// UUIDs of players currently online.
+    online_players: HashSet<Uuid>,
+
+    /// uuid → current alias (kept up to date on login).
+    aliases: HashMap<Uuid, String>,
+
+    /// uuid → ECS entity for online players (so we can send messages).
+    uuid_to_entity: HashMap<Uuid, EcsEntity>,
+
+    /// Pending notifications to deliver: (target_uuid, message).
+    pending_notifications: Vec<(Uuid, String)>,
+}
+
+impl Default for FriendsResource {
+    fn default() -> Self {
+        Self {
+            friend_lists: HashMap::new(),
+            online_players: HashSet::new(),
+            aliases: HashMap::new(),
+            uuid_to_entity: HashMap::new(),
+            pending_notifications: Vec::new(),
+        }
+    }
+}
+
+impl FriendsResource {
+    // -- Online player tracking --------------------------------------------
+
+    /// Call when a player logs in. Registers them as online and notifies
+    /// accepted friends.
+    pub fn player_online(&mut self, uuid: Uuid, alias: String, entity: EcsEntity) {
+        self.aliases.insert(uuid, alias.clone());
+        self.uuid_to_entity.insert(uuid, entity);
+        self.online_players.insert(uuid);
+
+        info!(?uuid, ?alias, "Player marked online in friends system");
+
+        // Notify accepted friends that this player came online.
+        if let Some(friends) = self.friend_lists.get(&uuid) {
+            let notify_uuids: Vec<Uuid> = friends
+                .iter()
+                .filter(|f| {
+                    f.status == FriendStatus::Accepted && self.online_players.contains(&f.uuid)
+                })
+                .map(|f| f.uuid)
+                .collect();
+
+            for friend_uuid in notify_uuids {
+                self.pending_notifications.push((
+                    friend_uuid,
+                    format!("Your friend {} has come online!", alias),
+                ));
+            }
+
+            // Also notify this player about friends already online.
+            let online_friend_uuids: Vec<Uuid> = friends
+                .iter()
+                .filter(|f| {
+                    f.status == FriendStatus::Accepted && self.online_players.contains(&f.uuid)
+                })
+                .map(|f| f.uuid)
+                .collect();
+
+            for friend_uuid in online_friend_uuids {
+                if let Some(friend_alias) = self.aliases.get(&friend_uuid) {
+                    self.pending_notifications.push((
+                        uuid,
+                        format!("Your friend {} is online.", friend_alias),
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Call when a player logs out.
+    pub fn player_offline(&mut self, uuid: &Uuid) {
+        self.online_players.remove(uuid);
+        self.uuid_to_entity.remove(uuid);
+        debug!(?uuid, "Player marked offline in friends system");
+    }
+
+    /// Returns true if the given UUID is currently online.
+    pub fn is_online(&self, uuid: &Uuid) -> bool {
+        self.online_players.contains(uuid)
+    }
+
+    // -- Friend operations -------------------------------------------------
+
+    /// Send a friend request from `from` to `to`.
+    ///
+    /// If `to` already sent a pending request to `from`, this auto-accepts
+    /// both sides.
+    pub fn send_request(&mut self, from: Uuid, to: Uuid) -> FriendRequestResult {
+        if from == to {
+            return FriendRequestResult::CannotFriendSelf;
+        }
+
+        // Look up target alias.
+        let to_alias = match self.aliases.get(&to) {
+            Some(a) => a.clone(),
+            None => return FriendRequestResult::PlayerNotFound,
+        };
+        let from_alias = self
+            .aliases
+            .get(&from)
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        // Check if already accepted friends.
+        if let Some(list) = self.friend_lists.get(&from) {
+            if list
+                .iter()
+                .any(|f| f.uuid == to && f.status == FriendStatus::Accepted)
+            {
+                return FriendRequestResult::AlreadyFriends { alias: to_alias };
+            }
+        }
+
+        // Check reverse pending (they already sent us a request → auto-accept).
+        // This must come before the AlreadyPending check so that mutual requests
+        // resolve automatically. We look for PendingOutgoing on `to`'s side because
+        // that means `to` already sent a request to `from`.
+        if let Some(list) = self.friend_lists.get(&to) {
+            if list
+                .iter()
+                .any(|f| f.uuid == from && f.status == FriendStatus::PendingOutgoing)
+            {
+                // Auto-accept: promote both sides to Accepted.
+                self.promote_to_accepted(from, to);
+                return FriendRequestResult::Sent {
+                    to_alias: format!("{} (auto-accepted)", to_alias),
+                };
+            }
+        }
+
+        // Check if we already have an outgoing pending request to this player.
+        if let Some(list) = self.friend_lists.get(&from) {
+            if list
+                .iter()
+                .any(|f| f.uuid == to && f.status == FriendStatus::PendingOutgoing)
+            {
+                return FriendRequestResult::AlreadyPending { alias: to_alias };
+            }
+        }
+
+        // Add outgoing pending entry on sender's side.
+        self.friend_lists
+            .entry(from)
+            .or_default()
+            .push(FriendEntry {
+                uuid: to,
+                alias: to_alias.clone(),
+                status: FriendStatus::PendingOutgoing,
+            });
+
+        // Add incoming pending entry on receiver's side so they can see the request.
+        self.friend_lists
+            .entry(to)
+            .or_default()
+            .push(FriendEntry {
+                uuid: from,
+                alias: from_alias.clone(),
+                status: FriendStatus::PendingIncoming,
+            });
+
+        // Notify the target if online.
+        if self.online_players.contains(&to) {
+            self.pending_notifications
+                .push((to, format!("{} sent you a friend request!", from_alias)));
+        }
+
+        FriendRequestResult::Sent { to_alias }
+    }
+
+    /// Accept a pending friend request from `requester` as seen by `acceptor`.
+    pub fn accept_request(&mut self, acceptor: Uuid, requester: Uuid) -> FriendAcceptResult {
+        let requester_alias = match self.aliases.get(&requester) {
+            Some(a) => a.clone(),
+            None => return FriendAcceptResult::PlayerNotFound,
+        };
+
+        // Verify there is a pending incoming request from requester → acceptor.
+        let has_pending = self
+            .friend_lists
+            .get(&acceptor)
+            .map(|list| {
+                list.iter().any(|f| {
+                    f.uuid == requester && f.status == FriendStatus::PendingIncoming
+                })
+            })
+            .unwrap_or(false);
+
+        if !has_pending {
+            return FriendAcceptResult::NoPendingRequest;
+        }
+
+        self.promote_to_accepted(acceptor, requester);
+
+        // Notify requester if online.
+        let acceptor_alias = self
+            .aliases
+            .get(&acceptor)
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string());
+        if self.online_players.contains(&requester) {
+            self.pending_notifications.push((
+                requester,
+                format!("{} accepted your friend request!", acceptor_alias),
+            ));
+        }
+
+        FriendAcceptResult::Accepted {
+            alias: requester_alias,
+        }
+    }
+
+    /// Remove a friend (or reject a pending request).
+    pub fn remove_friend(&mut self, player: Uuid, target: Uuid) -> FriendRemoveResult {
+        let target_alias = match self.aliases.get(&target) {
+            Some(a) => a.clone(),
+            None => return FriendRemoveResult::PlayerNotFound,
+        };
+
+        let removed = if let Some(list) = self.friend_lists.get_mut(&player) {
+            let before = list.len();
+            list.retain(|f| f.uuid != target);
+            list.len() < before
+        } else {
+            false
+        };
+
+        // Also remove from the other side.
+        if let Some(list) = self.friend_lists.get_mut(&target) {
+            list.retain(|f| f.uuid != player);
+        }
+
+        if removed {
+            FriendRemoveResult::Removed {
+                alias: target_alias,
+            }
+        } else {
+            FriendRemoveResult::NotFriends
+        }
+    }
+
+    /// Get the full friend list for a player (pending + accepted).
+    pub fn get_friends(&self, uuid: &Uuid) -> FriendListResult {
+        let friends = self.friend_lists.get(uuid).cloned().unwrap_or_default();
+        FriendListResult { friends }
+    }
+
+    /// Get only accepted friends for a player.
+    pub fn get_accepted_friends(&self, uuid: &Uuid) -> Vec<FriendEntry> {
+        self.friend_lists
+            .get(uuid)
+            .map(|list| {
+                list.iter()
+                    .filter(|f| f.status == FriendStatus::Accepted)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Get pending incoming friend requests for a player (requests they
+    /// haven't accepted yet).
+    pub fn get_pending_requests(&self, uuid: &Uuid) -> Vec<FriendEntry> {
+        self.friend_lists
+            .get(uuid)
+            .map(|list| {
+                list.iter()
+                    .filter(|f| f.status == FriendStatus::PendingIncoming)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Look up a UUID by alias (case-insensitive). Returns the first match.
+    pub fn uuid_from_alias(&self, alias: &str) -> Option<Uuid> {
+        let lower = alias.to_lowercase();
+        self.aliases
+            .iter()
+            .find(|(_, a)| a.to_lowercase() == lower)
+            .map(|(uuid, _)| *uuid)
+    }
+
+    // -- Notification drain ------------------------------------------------
+
+    /// Drain all pending notifications. Returns `(target_uuid, message)` pairs.
+    pub fn drain_notifications(&mut self) -> Vec<(Uuid, String)> {
+        std::mem::take(&mut self.pending_notifications)
+    }
+
+    // -- Internal helpers --------------------------------------------------
+
+    /// Promote a pending relationship to Accepted on both sides.
+    fn promote_to_accepted(&mut self, a: Uuid, b: Uuid) {
+        // Promote on A's side.
+        if let Some(list) = self.friend_lists.get_mut(&a) {
+            for entry in list.iter_mut() {
+                if entry.uuid == b {
+                    entry.status = FriendStatus::Accepted;
+                }
+            }
+        }
+        // Ensure B has an Accepted entry for A (replace any pending).
+        if let Some(list) = self.friend_lists.get_mut(&b) {
+            list.retain(|f| f.uuid != a);
+            let alias_a = self
+                .aliases
+                .get(&a)
+                .cloned()
+                .unwrap_or_else(|| "Unknown".to_string());
+            list.push(FriendEntry {
+                uuid: a,
+                alias: alias_a,
+                status: FriendStatus::Accepted,
+            });
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Notification tick helper
+// ---------------------------------------------------------------------------
+
+/// Drain pending friend notifications and send them as in-game chat messages.
+///
+/// Call this once per server tick after `FriendsResource` has been updated.
+/// Reads from the ECS world directly so it works with the existing server
+/// tick structure.
+pub fn tick_friends_notifications(ecs: &specs::World) {
+    let notifications = {
+        let mut friends = ecs.write_resource::<FriendsResource>();
+        friends.drain_notifications()
+    };
+
+    if notifications.is_empty() {
+        return;
+    }
+
+    // Build a snapshot of uuid → entity for delivery.
+    let uuid_to_entity: HashMap<Uuid, EcsEntity> = {
+        let friends = ecs.read_resource::<FriendsResource>();
+        friends.uuid_to_entity.clone()
+    };
+
+    for (target_uuid, message) in notifications {
+        if let Some(&entity) = uuid_to_entity.get(&target_uuid) {
+            let clients = ecs.read_storage::<crate::Client>();
+            if let Some(client) = clients.get(entity) {
+                let msg =
+                    ServerGeneral::server_msg(ChatType::CommandInfo, Content::Plain(message));
+                client.send_fallible(msg);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_friend_request_and_accept() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        let bob = Uuid::from_u128(2);
+
+        res.aliases.insert(alice, "Alice".into());
+        res.aliases.insert(bob, "Bob".into());
+
+        // Alice sends request to Bob.
+        let result = res.send_request(alice, bob);
+        assert!(matches!(result, FriendRequestResult::Sent { .. }));
+
+        // Alice should see PendingOutgoing, Bob should see PendingIncoming.
+        assert_eq!(res.get_friends(&alice).friends.len(), 1);
+        assert_eq!(res.get_friends(&bob).friends.len(), 1);
+        assert_eq!(
+            res.get_friends(&alice).friends[0].status,
+            FriendStatus::PendingOutgoing
+        );
+        assert_eq!(
+            res.get_friends(&bob).friends[0].status,
+            FriendStatus::PendingIncoming
+        );
+
+        // Bob should see one pending incoming request.
+        assert_eq!(res.get_pending_requests(&bob).len(), 1);
+        // Alice should have no pending incoming requests.
+        assert_eq!(res.get_pending_requests(&alice).len(), 0);
+
+        // Bob accepts.
+        let result = res.accept_request(bob, alice);
+        assert!(matches!(result, FriendAcceptResult::Accepted { .. }));
+
+        // Both should now be Accepted.
+        assert_eq!(
+            res.get_friends(&alice).friends[0].status,
+            FriendStatus::Accepted
+        );
+        assert_eq!(
+            res.get_friends(&bob).friends[0].status,
+            FriendStatus::Accepted
+        );
+    }
+
+    #[test]
+    fn test_cannot_friend_self() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        res.aliases.insert(alice, "Alice".into());
+
+        let result = res.send_request(alice, alice);
+        assert!(matches!(result, FriendRequestResult::CannotFriendSelf));
+    }
+
+    #[test]
+    fn test_auto_accept_reverse_request() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        let bob = Uuid::from_u128(2);
+        res.aliases.insert(alice, "Alice".into());
+        res.aliases.insert(bob, "Bob".into());
+
+        // Alice → Bob, then Bob → Alice (should auto-accept).
+        res.send_request(alice, bob);
+        let result = res.send_request(bob, alice);
+        assert!(matches!(result, FriendRequestResult::Sent { .. }));
+
+        // Both should be accepted.
+        assert_eq!(
+            res.get_friends(&alice).friends[0].status,
+            FriendStatus::Accepted
+        );
+        assert_eq!(
+            res.get_friends(&bob).friends[0].status,
+            FriendStatus::Accepted
+        );
+    }
+
+    #[test]
+    fn test_remove_friend() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        let bob = Uuid::from_u128(2);
+        res.aliases.insert(alice, "Alice".into());
+        res.aliases.insert(bob, "Bob".into());
+
+        res.send_request(alice, bob);
+        res.accept_request(bob, alice);
+
+        let result = res.remove_friend(alice, bob);
+        assert!(matches!(result, FriendRemoveResult::Removed { .. }));
+        assert!(res.get_friends(&alice).friends.is_empty());
+        assert!(res.get_friends(&bob).friends.is_empty());
+    }
+
+    #[test]
+    fn test_duplicate_request_rejected() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        let bob = Uuid::from_u128(2);
+        res.aliases.insert(alice, "Alice".into());
+        res.aliases.insert(bob, "Bob".into());
+
+        res.send_request(alice, bob);
+        let result = res.send_request(alice, bob);
+        assert!(matches!(result, FriendRequestResult::AlreadyPending { .. }));
+    }
+
+    #[test]
+    fn test_alias_lookup() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        res.aliases.insert(alice, "Alice".into());
+
+        assert_eq!(res.uuid_from_alias("Alice"), Some(alice));
+        assert_eq!(res.uuid_from_alias("alice"), Some(alice));
+        assert_eq!(res.uuid_from_alias("Bob"), None);
+    }
+
+    #[test]
+    fn test_pending_requests_are_incoming_only() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        let bob = Uuid::from_u128(2);
+        res.aliases.insert(alice, "Alice".into());
+        res.aliases.insert(bob, "Bob".into());
+
+        res.send_request(alice, bob);
+
+        // Bob should see one pending incoming request.
+        let pending = res.get_pending_requests(&bob);
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].uuid, alice);
+        assert_eq!(pending[0].status, FriendStatus::PendingIncoming);
+
+        // Alice should NOT see a pending incoming request (she sent it).
+        let pending_alice = res.get_pending_requests(&alice);
+        assert!(pending_alice.is_empty());
+    }
+
+    #[test]
+    fn test_already_friends_rejected() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        let bob = Uuid::from_u128(2);
+        res.aliases.insert(alice, "Alice".into());
+        res.aliases.insert(bob, "Bob".into());
+
+        res.send_request(alice, bob);
+        res.accept_request(bob, alice);
+
+        let result = res.send_request(alice, bob);
+        assert!(matches!(result, FriendRequestResult::AlreadyFriends { .. }));
+    }
+}

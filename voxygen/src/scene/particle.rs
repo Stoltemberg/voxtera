@@ -426,6 +426,63 @@ impl ParticleMgr {
                     };
                 };
             },
+            // HealthChange impact particles - blood for hits, sparks for armor
+            Outcome::HealthChange { pos, info } => {
+                let ecs = scene_data.state.ecs();
+                let target_entity = ecs.read_resource::<IdMaps>().uid_entity(info.target);
+
+                // Determine particle type based on target body
+                let particle_mode = target_entity
+                    .and_then(|entity| {
+                        ecs.read_storage::<Body>()
+                            .get(entity)
+                            .map(|body| {
+                                if body.bleeds() {
+                                    // Biological entities bleed
+                                    ParticleMode::Blood
+                                } else {
+                                    // Non-biological (armor, objects) get sparks
+                                    ParticleMode::GunPowderSpark
+                                }
+                            })
+                    })
+                    .unwrap_or(ParticleMode::Blood);
+
+                // More particles for critical hits
+                let particle_count = if info.precise { 20 } else { 10 };
+
+                // Create impact particles
+                self.particles.resize_with(self.particles.len() + particle_count, || {
+                    Particle::new(
+                        Duration::from_millis(if info.precise { 400 } else { 250 }),
+                        time,
+                        particle_mode,
+                        *pos + Vec3::new(
+                            rng.random_range(-0.3..0.3),
+                            rng.random_range(-0.3..0.3),
+                            rng.random_range(0.0..0.5),
+                        ),
+                        scene_data,
+                    )
+                });
+
+                // Add energy sparks for critical hits
+                if info.precise {
+                    self.particles.resize_with(self.particles.len() + 5, || {
+                        Particle::new(
+                            Duration::from_millis(300),
+                            time,
+                            ParticleMode::EnergyNature,
+                            *pos + Vec3::new(
+                                rng.random_range(-0.2..0.2),
+                                rng.random_range(-0.2..0.2),
+                                rng.random_range(0.2..0.8),
+                            ),
+                            scene_data,
+                        )
+                    });
+                }
+            },
             Outcome::Block { pos, parry, .. } => {
                 if *parry {
                     self.particles.resize_with(self.particles.len() + 10, || {
@@ -691,7 +748,6 @@ impl ParticleMgr {
             | Outcome::ExpChange { .. }
             | Outcome::SkillPointGain { .. }
             | Outcome::ComboChange { .. }
-            | Outcome::HealthChange { .. }
             | Outcome::PoiseChange { .. }
             | Outcome::Utterance { .. }
             | Outcome::IceSpikes { .. }
@@ -707,6 +763,7 @@ impl ParticleMgr {
             | Outcome::PortalActivated { .. }
             | Outcome::FromTheAshes { .. }
             | Outcome::LaserBeam { .. } => {},
+            // HealthChange is handled above for blood particles
         }
     }
 

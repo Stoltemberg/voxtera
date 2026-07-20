@@ -17,11 +17,14 @@ pub mod connection_handler;
 mod data_dir;
 pub mod error;
 pub mod events;
+pub mod friends;
 pub mod input;
 pub mod location;
 pub mod lod;
 pub mod login_provider;
 pub mod metrics;
+pub mod supabase_db;
+pub mod starter_kits;
 pub mod persistence;
 mod pet;
 pub mod presence;
@@ -35,6 +38,7 @@ pub mod terrain_persistence;
 
 #[cfg(feature = "worldgen")] mod weather;
 
+pub mod welcome;
 pub mod wiring;
 
 // Reexports
@@ -378,6 +382,7 @@ impl Server {
             .ecs_mut()
             .insert(EventBus::<chunk_serialize::ChunkSendEntry>::default());
         state.ecs_mut().insert(Locations::default());
+        state.ecs_mut().insert(friends::FriendsResource::default());
         state.ecs_mut().insert(LoginProvider::new(
             settings.auth_server_address.clone(),
             Arc::clone(&runtime),

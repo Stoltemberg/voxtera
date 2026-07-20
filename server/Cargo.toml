@@ -77,5 +77,7 @@ slotmap = { workspace = true }
 
 rusqlite = { workspace = true }
 refinery = { version = "0.9", features = ["rusqlite"] }
+jsonwebtoken = "9"
+reqwest = { version = "0.12", features = ["json"] }
 
 schnellru = "0.2.1"

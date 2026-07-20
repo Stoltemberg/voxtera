@@ -1092,7 +1092,7 @@ impl ServerEvent for DestroyEvent {
                     entity_skill_set,
                     *entity_body,
                     &data.msm,
-                ) * 20.0;
+                ) * 50.0; // Voxtera: 2.5x XP multiplier for faster progression
 
                 let mut damage_contributors = HashMap::<DamageContrib, (u64, f32)>::new();
                 for (damage_contributor, damage) in entity_health.damage_contributions() {

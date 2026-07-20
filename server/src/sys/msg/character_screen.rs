@@ -84,6 +84,13 @@ impl Sys {
                 ))?;
             }
 
+            // Voxtera: Send welcome message
+            if let Some(_player_uid) = uids.get(entity) {
+                if let Some(player) = players.get(entity) {
+                    crate::welcome::send_welcome_message(client, &player.alias);
+                }
+            }
+
             if client.client_type.emit_login_events()
                 && !client.login_msg_sent.load(Ordering::Relaxed)
                 && let Some(player_uid) = uids.get(entity)

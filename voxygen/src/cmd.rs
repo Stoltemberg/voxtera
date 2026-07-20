@@ -61,7 +61,7 @@ pub enum ClientChatCommand {
     /// Displays the name of the site or biome where the current waypoint is
     /// located.
     Waypoint,
-    /// Opens the Veloren wiki in a browser
+    /// Opens the Voxtera wiki in a browser
     Wiki,
 }
 
@@ -753,11 +753,11 @@ fn handle_wiki(
     args: Vec<String>,
 ) -> CommandResult {
     let url = if args.is_empty() {
-        "https://wiki.veloren.net/".to_string()
+        "https://wiki.voxtera.net/".to_string()
     } else {
         let query_string = args.join("+");
 
-        format!("https://wiki.veloren.net/w/index.php?search={query_string}")
+        format!("https://wiki.voxtera.net/w/index.php?search={query_string}")
     };
 
     open::that_detached(url)

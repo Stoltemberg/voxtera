@@ -264,13 +264,14 @@ void main() {
 
     // Apply baked lighting from emissive blocks
     float glow_mag = length(model_glow.xyz) + 0.001;
-    vec3 glow = pow(model_glow.w, 3.0) * 6.0
+    // Voxtera: Enhanced glow for emissive blocks
+    vec3 glow = pow(model_glow.w, 3.0) * 8.0  // Voxtera: Increased glow intensity
         * glow_light(f_pos)
         * mix((max(dot(f_norm, model_glow.xyz / glow_mag) * 0.5 + 0.5, 0.0)), 1.0, 1.0 / (1.0 + glow_mag * 10.0));
     reflected_light += glow * cam_attenuation;
 
     // Apply baked AO
-    float ao = f_ao * sqrt(f_ao);//0.25 + f_ao * 0.75; ///*pow(f_ao, 0.5)*/f_ao * 0.85 + 0.15;
+    float ao = f_ao * sqrt(f_ao) * 1.1;  // Voxtera: Enhanced AO for better depth
     reflected_light *= ao;
     emitted_light *= ao;
 
@@ -313,7 +314,14 @@ void main() {
     }
     */
 
-    surf_color = illuminate(max_light, view_dir, mix(surf_color * emitted_light, reflect_color, reflectance), mix(surf_color * reflected_light, reflect_color, reflectance)) * highlight_col.rgb;
+    // Voxtera: Enhanced color saturation
+    vec3 final_color = illuminate(max_light, view_dir, mix(surf_color * emitted_light, reflect_color, reflectance), mix(surf_color * reflected_light, reflect_color, reflectance)) * highlight_col.rgb;
+    
+    // Boost saturation slightly
+    float luma = dot(final_color, vec3(0.299, 0.587, 0.114));
+    final_color = mix(vec3(luma), final_color, 1.15);  // 15% saturation boost
+    
+    surf_color = final_color;
 
     tgt_color = vec4(surf_color, render_alpha);
     tgt_mat = uvec4(uvec3((f_norm + 1.0) * 127.0), render_mat);

@@ -9,6 +9,7 @@ mod crafting;
 mod diary;
 mod esc_menu;
 mod group;
+mod hit_indicator;
 mod hotbar;
 mod loot_scroller;
 mod map;
@@ -1357,6 +1358,7 @@ pub struct Hud {
     events: Vec<Event>,
     menu_events: Vec<MenuInput>,
     crosshair_opacity: f32,
+    crosshair_hit_flash: f32,
     floaters: Floaters,
     voxel_minimap: VoxelMinimap,
     map_drag: Vec2<f64>,
@@ -1461,6 +1463,7 @@ impl Hud {
             events: Vec::new(),
             menu_events: Vec::new(),
             crosshair_opacity: 0.0,
+            crosshair_hit_flash: 0.0,
             floaters: Floaters {
                 exp_floaters: Vec::new(),
                 skill_point_displays: Vec::new(),
@@ -1476,6 +1479,11 @@ impl Hud {
     }
 
     pub fn clear_chat(&mut self) { self.clear_chat = true; }
+
+    /// Trigger a hit flash effect on the crosshair (called when player hits an enemy)
+    pub fn trigger_crosshair_hit_flash(&mut self) {
+        self.crosshair_hit_flash = 1.0;
+    }
 
     pub fn set_prompt_dialog(&mut self, prompt_dialog: PromptDialogSettings) {
         self.show.prompt_dialog = Some(prompt_dialog);
@@ -1523,7 +1531,7 @@ impl Hud {
         self.pulse += dt.as_secs_f32();
         // FPS
         let fps = global_state.clock.stats().average_tps;
-        let version = format!("Veloren {}", *common::util::DISPLAY_VERSION);
+        let version = format!("Voxtera {}", *common::util::DISPLAY_VERSION);
         let i18n = &global_state.i18n.read();
 
         if self.show.ingame {
@@ -1643,6 +1651,21 @@ impl Hud {
                     5.0 * dt.as_secs_f32(),
                 );
 
+                // Decay crosshair hit flash over time
+                if self.crosshair_hit_flash > 0.0 {
+                    self.crosshair_hit_flash =
+                        (self.crosshair_hit_flash - dt.as_secs_f32() * 8.0).max(0.0);
+                }
+
+                // Scale flash: white -> red for critical hits
+                let _flash_color = if self.crosshair_hit_flash > 0.5 {
+                    // Bright white flash for first half
+                    Color::Rgba(1.0, 1.0, 1.0, self.crosshair_hit_flash * 0.8)
+                } else {
+                    // Fade to normal
+                    Color::Rgba(1.0, 1.0, 1.0, 0.0)
+                };
+
                 Image::new(
                     // TODO: Do we want to match on this every frame?
                     match global_state.settings.interface.crosshair_type {
@@ -1660,10 +1683,22 @@ impl Hud {
                     self.crosshair_opacity * global_state.settings.interface.crosshair_opacity,
                 )))
                 .set(self.ids.crosshair_outer, ui_widgets);
+
+                // Apply hit flash to inner crosshair (brighter when hit)
+                let inner_opacity = if self.crosshair_hit_flash > 0.0 {
+                    (0.6 + self.crosshair_hit_flash * 0.4).min(1.0)
+                } else {
+                    0.6
+                };
                 Image::new(self.imgs.crosshair_inner)
                     .w_h(21.0 * 2.0, 21.0 * 2.0)
                     .middle_of(self.ids.crosshair_outer)
-                    .color(Some(Color::Rgba(1.0, 1.0, 1.0, 0.6)))
+                    .color(Some(Color::Rgba(
+                        1.0,
+                        1.0 - self.crosshair_hit_flash * 0.3,
+                        1.0 - self.crosshair_hit_flash * 0.3,
+                        inner_opacity,
+                    )))
                     .set(self.ids.crosshair_inner, ui_widgets);
 
                 if let Some(charge) = char_states.get(me).and_then(|cs| cs.charge_frac()) {
@@ -5453,6 +5488,10 @@ impl Hud {
                             // If the attack was by me also reset this timer
                             if by_me {
                                 floater_list.time_since_last_dmg_by_me = Some(0.0);
+                                // Trigger crosshair hit flash when player hits an enemy
+                                if info.amount < 0.0 {
+                                    self.trigger_crosshair_hit_flash();
+                                }
                             }
                             hit_me || by_me
                         },
