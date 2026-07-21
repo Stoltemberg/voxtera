@@ -10,6 +10,7 @@ mod diary;
 mod esc_menu;
 mod group;
 mod hit_indicator;
+use hit_indicator::HitDirectionIndicator;
 mod hotbar;
 mod loot_scroller;
 mod map;
@@ -354,6 +355,9 @@ widget_ids! {
         tut_arrow,
         tut_arrow_txt_bg,
         tut_arrow_txt,
+
+        // Hit direction indicator
+        hit_direction_indicator,
     }
 }
 
@@ -1359,6 +1363,7 @@ pub struct Hud {
     menu_events: Vec<MenuInput>,
     crosshair_opacity: f32,
     crosshair_hit_flash: f32,
+    hit_indicators: std::collections::VecDeque<hit_indicator::HitIndicator>,
     floaters: Floaters,
     voxel_minimap: VoxelMinimap,
     map_drag: Vec2<f64>,
@@ -1464,6 +1469,7 @@ impl Hud {
             menu_events: Vec::new(),
             crosshair_opacity: 0.0,
             crosshair_hit_flash: 0.0,
+            hit_indicators: std::collections::VecDeque::new(),
             floaters: Floaters {
                 exp_floaters: Vec::new(),
                 skill_point_displays: Vec::new(),
@@ -1724,6 +1730,11 @@ impl Hud {
                     .set(self.ids.crosshair_charge, ui_widgets);
                 }
             }
+
+            // Hit direction indicator
+            HitDirectionIndicator::new(&mut self.hit_indicators)
+                .middle_of(ui_widgets.window)
+                .set(self.ids.hit_direction_indicator, ui_widgets);
 
             // Max amount the sct font size increases when "flashing"
             const FLASH_MAX: u32 = 2;
@@ -5482,6 +5493,30 @@ impl Hud {
                     let hit_me = my_uid.is_some_and(|&uid| {
                         (info.target == uid) && global_state.settings.interface.sct_inc_dmg
                     });
+                    // Register directional hit indicator when player takes damage
+                    if hit_me && info.amount < 0.0 {
+                        let positions = ecs.read_storage::<comp::Pos>();
+                        let player_pos = positions.get(me).map(|p| p.0.xy()).unwrap_or_default();
+                        let player_forward = ecs
+                            .read_storage::<comp::Ori>()
+                            .get(me)
+                            .map(|o| o.look_vec().xy().try_normalized().unwrap_or(Vec2::unit_y()))
+                            .unwrap_or(Vec2::unit_y());
+                        let attacker_pos = info.by.and_then(|by| {
+                            ecs.entity_from_uid(by.uid())
+                                .and_then(|e| positions.get(e).map(|p| p.0.xy()))
+                        });
+                        if let Some(atk_pos) = attacker_pos {
+                            let severity = (info.amount.abs() / 50.0).clamp(0.3, 1.0);
+                            hit_indicator::register_hit(
+                                &mut self.hit_indicators,
+                                atk_pos,
+                                player_pos,
+                                player_forward,
+                                severity,
+                            );
+                        }
+                    }
                     if match info.by {
                         Some(by) => {
                             let by_me = my_uid.is_some_and(|&uid| by.uid() == uid);
