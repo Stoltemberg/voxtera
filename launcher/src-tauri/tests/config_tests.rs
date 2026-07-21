@@ -43,3 +43,21 @@ fn invalid_install_path_cannot_escape_local_data_by_default() {
     assert_eq!(config.install_dir, paths.default_install_dir);
     assert!(config.install_dir.ends_with(r"Voxtera\game"));
 }
+
+#[test]
+fn save_atomic_replaces_an_existing_config() {
+    let temp = tempfile::tempdir().unwrap();
+    let paths = fixture_paths(temp.path());
+    let first = LauncherConfig::default_for(&paths);
+    first.save_atomic(&paths).unwrap();
+
+    let mut second = first.clone();
+    second.installed_version = Some("v0.3.0".to_owned());
+    second.start_minimized = true;
+    second.save_atomic(&paths).unwrap();
+
+    let saved: LauncherConfig =
+        serde_json::from_slice(&std::fs::read(&paths.config_file).unwrap()).unwrap();
+    assert_eq!(saved, second);
+    assert!(!paths.root.join("launcher.json.tmp").exists());
+}
