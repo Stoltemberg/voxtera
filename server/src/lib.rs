@@ -1388,6 +1388,18 @@ impl Server {
                 self.handle_friends(entity);
                 return;
             },
+            "acceptfriend" => {
+                self.handle_acceptfriend(entity, args);
+                return;
+            },
+            "rejectfriend" => {
+                self.handle_rejectfriend(entity, args);
+                return;
+            },
+            "removefriend" => {
+                self.handle_removefriend(entity, args);
+                return;
+            },
             _ => {},
         }
 
@@ -1672,6 +1684,261 @@ impl Server {
                 Content::Plain(lines.join("\n")),
             ),
         );
+    }
+
+    /// Handle `/acceptfriend <playername>` — accept a pending friend request.
+    fn handle_acceptfriend(&mut self, entity: EcsEntity, args: Vec<String>) {
+        let target_name = match args.first() {
+            Some(name) => name.clone(),
+            None => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain("Usage: /acceptfriend <playername>".to_string()),
+                    ),
+                );
+                return;
+            },
+        };
+
+        let from_uuid = {
+            let players = self.state.ecs().read_storage::<comp::Player>();
+            match players.get(entity) {
+                Some(player) => player.uuid(),
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain("Could not identify your player.".to_string()),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        let requester_uuid = {
+            let friends = self.state.ecs().read_resource::<friends::FriendsResource>();
+            match friends.uuid_from_alias(&target_name) {
+                Some(uuid) => uuid,
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain(format!(
+                                "Player '{}' not found.",
+                                target_name
+                            )),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let result = friends.accept_request(from_uuid, requester_uuid);
+        match result {
+            friends::FriendAcceptResult::Accepted { alias } => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandInfo,
+                        Content::Plain(format!("You are now friends with {}!", alias)),
+                    ),
+                );
+            },
+            friends::FriendAcceptResult::NoPendingRequest => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain(format!(
+                            "No pending friend request from {}.",
+                            target_name
+                        )),
+                    ),
+                );
+            },
+            friends::FriendAcceptResult::PlayerNotFound => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain(format!("Player '{}' not found.", target_name)),
+                    ),
+                );
+            },
+        }
+    }
+
+    /// Handle `/rejectfriend <playername>` — reject a pending friend request.
+    fn handle_rejectfriend(&mut self, entity: EcsEntity, args: Vec<String>) {
+        let target_name = match args.first() {
+            Some(name) => name.clone(),
+            None => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain("Usage: /rejectfriend <playername>".to_string()),
+                    ),
+                );
+                return;
+            },
+        };
+
+        let from_uuid = {
+            let players = self.state.ecs().read_storage::<comp::Player>();
+            match players.get(entity) {
+                Some(player) => player.uuid(),
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain("Could not identify your player.".to_string()),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        let target_uuid = {
+            let friends = self.state.ecs().read_resource::<friends::FriendsResource>();
+            match friends.uuid_from_alias(&target_name) {
+                Some(uuid) => uuid,
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain(format!("Player '{}' not found.", target_name)),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let result = friends.remove_friend(from_uuid, target_uuid);
+        match result {
+            friends::FriendRemoveResult::Removed { alias } => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandInfo,
+                        Content::Plain(format!("Rejected friend request from {}.", alias)),
+                    ),
+                );
+            },
+            friends::FriendRemoveResult::NotFriends => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain(format!("No pending request from {}.", target_name)),
+                    ),
+                );
+            },
+            friends::FriendRemoveResult::PlayerNotFound => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain(format!("Player '{}' not found.", target_name)),
+                    ),
+                );
+            },
+        }
+    }
+
+    /// Handle `/removefriend <playername>` — remove an existing friend.
+    fn handle_removefriend(&mut self, entity: EcsEntity, args: Vec<String>) {
+        let target_name = match args.first() {
+            Some(name) => name.clone(),
+            None => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain("Usage: /removefriend <playername>".to_string()),
+                    ),
+                );
+                return;
+            },
+        };
+
+        let from_uuid = {
+            let players = self.state.ecs().read_storage::<comp::Player>();
+            match players.get(entity) {
+                Some(player) => player.uuid(),
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain("Could not identify your player.".to_string()),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        let target_uuid = {
+            let friends = self.state.ecs().read_resource::<friends::FriendsResource>();
+            match friends.uuid_from_alias(&target_name) {
+                Some(uuid) => uuid,
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain(format!("Player '{}' not found.", target_name)),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let result = friends.remove_friend(from_uuid, target_uuid);
+        match result {
+            friends::FriendRemoveResult::Removed { alias } => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandInfo,
+                        Content::Plain(format!("Removed {} from your friends list.", alias)),
+                    ),
+                );
+            },
+            friends::FriendRemoveResult::NotFriends => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain(format!("{} is not on your friends list.", target_name)),
+                    ),
+                );
+            },
+            friends::FriendRemoveResult::PlayerNotFound => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain(format!("Player '{}' not found.", target_name)),
+                    ),
+                );
+            },
+        }
     }
 
     pub fn number_of_players(&self) -> i64 {
