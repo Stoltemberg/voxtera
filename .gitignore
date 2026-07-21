@@ -108,3 +108,5 @@ dist/
 Voxtera-*.zip
 target/
 userdata/
+launcher/build/
+launcher/dist/
