@@ -565,6 +565,120 @@ npc-speech-where_are_we_going_wrong_profession =
     .a0 = Espera, o quê? Não acho que eu deveria estar levando você a lugar algum.
     .a1 = Huh? Por que eu estaria te levando a algum lugar?
 
+## NPC Quest Dialogues
+
+npc-question-general =
+    .a0 = O que posso fazer por você?
+    .a1 = Oi. Em que posso ajudar?
+    .a2 = Olá, como posso ajudar?
+
+npc-info-current_site =
+    .a0 = Este é { $site }.
+    .a1 = Você está em { $site }.
+
+npc-info-self_name =
+    .a0 = Meu nome é { $name }.
+    .a1 = Me chamam de { $name }.
+    .a2 = { $name } é o meu nome.
+
+npc-info-self_home =
+    .a0 = Moro em { $site }.
+    .a1 = Minha casa é { $site }.
+
+npc-info-self_homeless =
+    .a0 = Não tenho uma casa.
+    .a1 = Não tenho onde morar.
+
+npc-info-role =
+    .a0 = Sou { $role }.
+    .a1 = Trabalho como { $role }.
+    .a2 = Minha profissão é { $role }.
+
+noun-role-none =
+    .a0 = Sou um espírito livre.
+
+npc-info-unknown =
+    .a0 = Não sei.
+    .a1 = Não tenho certeza.
+
+npc-response-hire_time = Por quanto tempo quer me contratar?
+
+npc-response-accept_hire =
+    .a0 = Vamos lá!
+    .a1 = Estou pronto, siga-me!
+
+npc-response-decline_hire =
+    .a0 = Desculpe, não tenho tempo agora.
+    .a1 = Não, obrigado.
+
+npc-response-already_hired = Não seja bobo, você já me contratou!
+
+npc-dialogue-hire_cancelled = Contrato cancelado.
+
+npc-dialogue-hire_cancelled_unhappy = Que decepção. Eu estava contando com isso.
+
+npc-dialogue-hire_arrive_tavern = Chegamos à taverna.
+
+npc-dialogue-hire_expired = O tempo do nosso contrato acabou.
+
+npc-response-quest-nothing = Não tenho nenhum trabalho para você agora.
+
+npc-response-quest-rejected = Tudo bem, sem problemas.
+
+npc-response-quest-reward = Aqui está sua recompensa.
+
+npc-response-quest-timeout = O tempo acabou, nada de dinheiro para você!
+
+npc-question-directions =
+    .a0 = Para onde você quer ir?
+    .a1 = O que está procurando?
+
+npc-response-directions = Marquei no seu mapa. Boa sorte!
+
+npc-response-doesnt_exist = Não temos nada disso por aqui.
+
+npc-response-quest-escort-ask =
+    .a0 = Poderia me levar até { $dst }? Pagarei { $coins } moedas! Preciso chegar lá em { $mins } minutos!
+    .a1 = Quero ir para { $dst } nos próximos { $mins } minutos. Poderia me levar lá por { $coins } moedas?
+
+npc-response-quest-escort-start =
+    .a0 = Vá na frente então! Marquei o lugar no seu mapa.
+    .a1 = Excelente. O destino está no seu mapa. Você na frente, eu vou atrás.
+
+npc-response-quest-escort-where =
+    .a0 = Estamos indo para { $dst }.
+    .a1 = Estou tentando chegar em { $dst }.
+    .a2 = Vamos para { $dst }, certo?
+
+npc-response-quest-escort-complete =
+    .a0 = Chegamos. Obrigado!
+    .a1 = Obrigado por me levar até aqui. Até mais!
+
+npc-response-quest-slay-ask =
+    .a0 = O povo aqui está sendo aterrorizado por { $body }! Ele precisa ser morto! Pagarei { $coins } moedas pelo serviço.
+    .a1 = Não muito longe daqui, { $body } está à espreita. Não podemos viver assim! Ofereço { $coins } moedas se você o matar!
+
+npc-response-quest-slay-start =
+    .a0 = Marquei a última localização conhecida da besta no seu mapa.
+    .a1 = Marquei seu mapa para você saber onde ir.
+
+npc-response-quest-slay-start_2 = Se não me encontrar, pode pedir direções a outra pessoa.
+
+npc-response-quest-slay-start_3 =
+    .a0 = Cuidado! A besta está se movendo e pode não ficar por aqui por muito tempo. Pergunte por aí se perder o rastro!
+    .a1 = A criatura não vai ficar parada por muito tempo. Se perder o rastro, pode perguntar por aí.
+
+npc-response-quest-slay-start_4 =
+    .a0 = Volte quando o serviço estiver feito e receberá seu pagamento.
+    .a1 = Boa sorte! Seu pagamento o espera quando você voltar!
+
+npc-response-quest-slay-where = Atualizei a localização do monstro no seu mapa.
+
+npc-response-quest-slay-thanks =
+    .a0 = Obrigado! O povo aqui estará seguro de novo.
+    .a1 = Tem minha gratidão... e meu dinheiro!
+    .a2 = Você nos fez um grande favor, muito obrigado.
+
 ## NPC pilot dialogue
 
 npc-speech-pilot-takeoff =
