@@ -565,7 +565,7 @@ Test-Case 'unsupported Windows Server is fatal at the entrypoint' {
     $exitCode = $LASTEXITCODE
     $ErrorActionPreference = $previousErrorActionPreference
     Assert-Equal 2 $exitCode
-    Assert-Match 'Windows Server is unsupported' ($output -join "`n")
+    Assert-Match 'Windows Server\s+is\s+unsupported' ($output -join "`n")
 }
 
 Test-Case 'doctor JSON is one valid document' {
