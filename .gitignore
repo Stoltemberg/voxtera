@@ -110,3 +110,5 @@ target/
 userdata/
 launcher/build/
 launcher/dist/
+launcher/node_modules/
+launcher/src-tauri/gen/

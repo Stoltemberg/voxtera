@@ -26,6 +26,7 @@ members = [
     "voxygen/i18n-helpers",
     "world",
 ]
+exclude = ["launcher/src-tauri"]
 
 ### PACKAGE ###
 [workspace.package]

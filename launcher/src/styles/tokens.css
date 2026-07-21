@@ -1,0 +1,15 @@
+:root {
+  --color-void: #071014;
+  --color-stone: #111B20;
+  --color-stone-raised: #19262C;
+  --color-ice: #8BE8FF;
+  --color-ice-strong: #35CFF4;
+  --color-gold: #D9A94A;
+  --color-text: #F2F8FA;
+  --color-muted: #98A9B0;
+  --color-danger: #E66A62;
+  --radius-small: 6px;
+  --radius-medium: 10px;
+  --motion-fast: 140ms;
+  --motion-normal: 220ms;
+}

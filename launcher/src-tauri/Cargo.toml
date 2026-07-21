@@ -1,0 +1,24 @@
+[package]
+name = "voxtera-launcher"
+version = "0.3.0-preview.1"
+edition = "2024"
+license = "GPL-3.0-or-later"
+default-run = "voxtera-launcher"
+
+[lib]
+name = "launcher_core"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tauri = { version = "2.11.5", features = [] }
+thiserror = "2.0.19"
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[lints.rust]
+linker_messages = "allow"
+
+[workspace]
