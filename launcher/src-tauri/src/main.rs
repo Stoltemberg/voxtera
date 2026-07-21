@@ -1,3 +1,1 @@
-fn main() {
-    launcher_core::run();
-}
+fn main() { launcher_core::run(); }

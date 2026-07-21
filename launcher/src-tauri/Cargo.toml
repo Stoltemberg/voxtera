@@ -18,6 +18,9 @@ thiserror = "2.0.19"
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
 
+[dev-dependencies]
+tempfile = "3.23.0"
+
 [lints.rust]
 linker_messages = "allow"
 
