@@ -27,6 +27,14 @@ Test-Case 'external command preserves arguments and exit code' {
     Assert-Match 'alpha' ($result.Output -join "`n")
 }
 
+Test-Case 'external command captures native stderr without treating exit zero as failure' {
+    $result = Invoke-ExternalCommand -FilePath 'cmd.exe' -Arguments @(
+        '/d', '/c', 'echo informational message 1>&2 & exit /b 0'
+    )
+    Assert-Equal 0 $result.ExitCode
+    Assert-Match 'informational message' ($result.Output -join "`n")
+}
+
 Test-Case 'log path stays under LOCALAPPDATA' {
     $path = New-BootstrapLogPath -Timestamp ([datetime]'2026-07-18T12:34:56')
     Assert-True $path.StartsWith($env:LOCALAPPDATA, [System.StringComparison]::OrdinalIgnoreCase)

@@ -27,6 +27,7 @@ function Invoke-ExternalCommand {
         [Parameter(Mandatory)][string]$FilePath,
         [string[]]$Arguments = @()
     )
+    $local:ErrorActionPreference = 'Continue'
     $output = @(& $FilePath @Arguments 2>&1 | ForEach-Object { $_.ToString() })
     $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
     [pscustomobject][ordered]@{
