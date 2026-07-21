@@ -8,6 +8,7 @@ mod chat;
 mod crafting;
 mod diary;
 mod esc_menu;
+mod friends_panel;
 mod group;
 mod hit_indicator;
 use hit_indicator::HitDirectionIndicator;
@@ -24,7 +25,6 @@ mod settings_window;
 mod skillbar;
 mod slot_grid;
 mod slots;
-mod social;
 mod subtitles;
 mod trade;
 
@@ -51,6 +51,7 @@ use chrono::NaiveTime;
 use crafting::Crafting;
 use diary::{Diary, SelectedSkillTree};
 use esc_menu::EscMenu;
+use friends_panel::FriendsPanel;
 use group::Group;
 use img_ids::Imgs;
 use item_imgs::ItemImgs;
@@ -64,7 +65,6 @@ use serde::{Deserialize, Serialize};
 use settings_window::{SettingsTab, SettingsWindow};
 use skillbar::Skillbar;
 use slot_grid::SlotGrid;
-use social::Social;
 use subtitles::Subtitles;
 use trade::Trade;
 use tutorial::Tutorial;
@@ -679,6 +679,7 @@ pub struct HudInfo<'a> {
 pub enum Event {
     SendMessage(String),
     SendCommand(String, Vec<String>),
+    FriendAction(common_net::msg::FriendAction),
 
     CharacterSelection,
     UseSlot {
@@ -3905,21 +3906,18 @@ impl Hud {
         if self.show.social {
             let ecs = client.state().ecs();
             let _stats = ecs.read_storage::<comp::Stats>();
-            for event in Social::new(
+            for event in FriendsPanel::new(
                 &self.show,
                 client,
                 &self.imgs,
                 &self.fonts,
                 i18n,
-                info.selected_entity,
-                &self.rot_imgs,
-                tooltip_manager,
                 global_state,
             )
             .set(self.ids.social_window, ui_widgets)
             {
                 match event {
-                    social::Event::Close => {
+                    friends_panel::Event::Close => {
                         self.show.social(false);
                         if !self.show.bag {
                             self.show.want_grab = true;
@@ -3928,17 +3926,13 @@ impl Hud {
                             self.force_ungrab = true
                         };
                     },
-                    social::Event::Focus(widget_id) => {
+                    friends_panel::Event::Focus(widget_id) => {
                         self.to_focus = Some(Some(widget_id));
                     },
-                    social::Event::Invite(uid) => events.push(Event::InviteMember(uid)),
-                    social::Event::SearchPlayers(search_key) => {
-                        self.show.search_social_players(search_key)
+                    friends_panel::Event::FriendAction(action) => {
+                        events.push(Event::FriendAction(action));
                     },
-                    social::Event::SetBattleMode(mode) => {
-                        events.push(Event::SetBattleMode(mode));
-                    },
-                    social::Event::MoveSocial(pos) => {
+                    friends_panel::Event::MoveSocial(pos) => {
                         global_state.settings.hud_position.social = pos;
                     },
                 }

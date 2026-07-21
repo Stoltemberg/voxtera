@@ -360,6 +360,28 @@ impl FriendsResource {
             .unwrap_or_default()
     }
 
+    /// Build a stable, UI-ready snapshot sorted by relationship status and
+    /// alias.
+    pub fn ui_snapshot(&self, uuid: &Uuid) -> Vec<common_net::msg::FriendInfo> {
+        let mut snapshot = self
+            .friend_lists
+            .get(uuid)
+            .into_iter()
+            .flatten()
+            .map(|entry| common_net::msg::FriendInfo {
+                alias: entry.alias.clone(),
+                status: match entry.status {
+                    FriendStatus::PendingOutgoing => common_net::msg::FriendStatus::PendingOutgoing,
+                    FriendStatus::PendingIncoming => common_net::msg::FriendStatus::PendingIncoming,
+                    FriendStatus::Accepted => common_net::msg::FriendStatus::Accepted,
+                },
+                online: self.online_players.contains(&entry.uuid),
+            })
+            .collect::<Vec<_>>();
+        snapshot.sort_by_key(|entry| entry.alias.to_lowercase());
+        snapshot
+    }
+
     /// Look up a UUID by alias (case-insensitive). Returns the first match.
     pub fn uuid_from_alias(&self, alias: &str) -> Option<Uuid> {
         let lower = alias.to_lowercase();
@@ -599,6 +621,36 @@ mod tests {
         // Alice should NOT see a pending incoming request (she sent it).
         let pending_alice = res.get_pending_requests(&alice);
         assert!(pending_alice.is_empty());
+    }
+
+    #[test]
+    fn test_ui_snapshot_contains_status_and_online_state() {
+        let mut res = FriendsResource::default();
+        let alice = Uuid::from_u128(1);
+        let bob = Uuid::from_u128(2);
+        let carol = Uuid::from_u128(3);
+        res.aliases.insert(alice, "Alice".into());
+        res.aliases.insert(bob, "Bob".into());
+        res.aliases.insert(carol, "Carol".into());
+
+        res.send_request(alice, bob);
+        res.send_request(carol, alice);
+        res.online_players.insert(bob);
+
+        let snapshot = res.ui_snapshot(&alice);
+        assert_eq!(snapshot.len(), 2);
+        assert_eq!(snapshot[0].alias, "Bob");
+        assert_eq!(
+            snapshot[0].status,
+            common_net::msg::FriendStatus::PendingOutgoing
+        );
+        assert!(snapshot[0].online);
+        assert_eq!(snapshot[1].alias, "Carol");
+        assert_eq!(
+            snapshot[1].status,
+            common_net::msg::FriendStatus::PendingIncoming
+        );
+        assert!(!snapshot[1].online);
     }
 
     #[test]

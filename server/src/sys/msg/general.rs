@@ -71,6 +71,28 @@ impl Sys {
                     emitters.emit(event::CommandEvent(entity, name, args));
                 }
             },
+            ClientGeneral::FriendAction(action) => {
+                if player.is_some() {
+                    let (name, args) = match action {
+                        common_net::msg::FriendAction::RequestList => {
+                            ("friendlist".to_string(), Vec::new())
+                        },
+                        common_net::msg::FriendAction::Add(alias) => {
+                            ("addfriend".to_string(), vec![alias])
+                        },
+                        common_net::msg::FriendAction::Accept(alias) => {
+                            ("acceptfriend".to_string(), vec![alias])
+                        },
+                        common_net::msg::FriendAction::Reject(alias) => {
+                            ("rejectfriend".to_string(), vec![alias])
+                        },
+                        common_net::msg::FriendAction::Remove(alias) => {
+                            ("removefriend".to_string(), vec![alias])
+                        },
+                    };
+                    emitters.emit(event::CommandEvent(entity, name, args));
+                }
+            },
             ClientGeneral::Terminate => {
                 debug!(?entity, "Client send message to terminate session");
                 emitters.emit(event::ClientDisconnectEvent(

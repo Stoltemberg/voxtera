@@ -123,6 +123,7 @@ pub enum ClientGeneral {
     //Always possible
     ChatMsg(comp::Content),
     Command(String, Vec<String>),
+    FriendAction(super::FriendAction),
     Terminate,
     RequestPlayerPhysics {
         server_authoritative: bool,
@@ -184,6 +185,7 @@ impl ClientMsg {
                         },
                         //Always possible
                         ClientGeneral::Command(_, _)
+                        | ClientGeneral::FriendAction(_)
                         | ClientGeneral::Terminate
                         // LodZoneRequest is required by the char select screen
                         | ClientGeneral::LodZoneRequest { .. } => true,

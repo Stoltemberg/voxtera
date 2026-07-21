@@ -1388,6 +1388,10 @@ impl Server {
                 self.handle_friends(entity);
                 return;
             },
+            "friendlist" => {
+                self.handle_friend_snapshot(entity);
+                return;
+            },
             "acceptfriend" => {
                 self.handle_acceptfriend(entity, args);
                 return;
@@ -1489,7 +1493,24 @@ impl Server {
 
     // -- Custom Voxtera chat commands ----------------------------------------
 
-    /// Handle `/addfriend <playername>` — send a friend request to another player.
+    /// Send the visual social panel a fresh friends snapshot.
+    fn handle_friend_snapshot(&mut self, entity: EcsEntity) {
+        let player_uuid = {
+            let players = self.state.ecs().read_storage::<comp::Player>();
+            players.get(entity).map(|player| player.uuid())
+        };
+        let Some(player_uuid) = player_uuid else {
+            return;
+        };
+        let snapshot = {
+            let friends = self.state.ecs().read_resource::<friends::FriendsResource>();
+            friends.ui_snapshot(&player_uuid)
+        };
+        self.notify_client(entity, ServerGeneral::FriendsUpdate(snapshot));
+    }
+
+    /// Handle `/addfriend <playername>` — send a friend request to another
+    /// player.
     fn handle_addfriend(&mut self, entity: EcsEntity, args: Vec<String>) {
         let target_name = match args.first() {
             Some(name) => name.clone(),
@@ -1534,7 +1555,8 @@ impl Server {
                         ServerGeneral::server_msg(
                             ChatType::CommandError,
                             Content::Plain(format!(
-                                "Player '{}' not found. They may need to have logged in at least once.",
+                                "Player '{}' not found. They may need to have logged in at least \
+                                 once.",
                                 target_name
                             )),
                         ),
@@ -1545,7 +1567,10 @@ impl Server {
         };
 
         // Send the friend request.
-        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let mut friends = self
+            .state
+            .ecs()
+            .write_resource::<friends::FriendsResource>();
         let result = friends.send_request(from_uuid, to_uuid);
         match result {
             friends::FriendRequestResult::Sent { to_alias } => {
@@ -1636,7 +1661,9 @@ impl Server {
                 .iter()
                 .map(|e| {
                     let dir = match e.status {
-                        friends::FriendStatus::PendingIncoming => "wants to be your friend".to_string(),
+                        friends::FriendStatus::PendingIncoming => {
+                            "wants to be your friend".to_string()
+                        },
                         friends::FriendStatus::PendingOutgoing => "request sent".to_string(),
                         _ => String::new(),
                     };
@@ -1679,10 +1706,7 @@ impl Server {
 
         self.notify_client(
             entity,
-            ServerGeneral::server_msg(
-                ChatType::CommandInfo,
-                Content::Plain(lines.join("\n")),
-            ),
+            ServerGeneral::server_msg(ChatType::CommandInfo, Content::Plain(lines.join("\n"))),
         );
     }
 
@@ -1728,10 +1752,7 @@ impl Server {
                         entity,
                         ServerGeneral::server_msg(
                             ChatType::CommandError,
-                            Content::Plain(format!(
-                                "Player '{}' not found.",
-                                target_name
-                            )),
+                            Content::Plain(format!("Player '{}' not found.", target_name)),
                         ),
                     );
                     return;
@@ -1739,7 +1760,10 @@ impl Server {
             }
         };
 
-        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let mut friends = self
+            .state
+            .ecs()
+            .write_resource::<friends::FriendsResource>();
         let result = friends.accept_request(from_uuid, requester_uuid);
         match result {
             friends::FriendAcceptResult::Accepted { alias } => {
@@ -1756,10 +1780,7 @@ impl Server {
                     entity,
                     ServerGeneral::server_msg(
                         ChatType::CommandError,
-                        Content::Plain(format!(
-                            "No pending friend request from {}.",
-                            target_name
-                        )),
+                        Content::Plain(format!("No pending friend request from {}.", target_name)),
                     ),
                 );
             },
@@ -1825,7 +1846,10 @@ impl Server {
             }
         };
 
-        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let mut friends = self
+            .state
+            .ecs()
+            .write_resource::<friends::FriendsResource>();
         let result = friends.remove_friend(from_uuid, target_uuid);
         match result {
             friends::FriendRemoveResult::Removed { alias } => {
@@ -1908,7 +1932,10 @@ impl Server {
             }
         };
 
-        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let mut friends = self
+            .state
+            .ecs()
+            .write_resource::<friends::FriendsResource>();
         let result = friends.remove_friend(from_uuid, target_uuid);
         match result {
             friends::FriendRemoveResult::Removed { alias } => {

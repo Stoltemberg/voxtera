@@ -59,9 +59,9 @@ use common_base::{prof_span, span};
 use common_i18n::Content;
 use common_net::{
     msg::{
-        ChatTypeContext, ClientGeneral, ClientMsg, ClientRegister, DisconnectReason, InviteAnswer,
-        Notification, PingMsg, PlayerInfo, PlayerListUpdate, RegisterError, ServerGeneral,
-        ServerInit, ServerRegisterAnswer,
+        ChatTypeContext, ClientGeneral, ClientMsg, ClientRegister, DisconnectReason, FriendAction,
+        FriendInfo, InviteAnswer, Notification, PingMsg, PlayerInfo, PlayerListUpdate,
+        RegisterError, ServerGeneral, ServerInit, ServerRegisterAnswer,
         server::ServerDescription,
         world_msg::{EconomyInfo, PoiInfo, SiteId},
     },
@@ -299,6 +299,7 @@ pub struct Client {
     world_data: WorldData,
     weather: WeatherLerp,
     player_list: HashMap<Uid, PlayerInfo>,
+    friends: Vec<FriendInfo>,
     character_list: CharacterList,
     character_being_deleted: Option<CharacterId>,
     sites: HashMap<SiteId, SiteMarker>,
@@ -1064,6 +1065,7 @@ impl Client {
             },
             weather: WeatherLerp::default(),
             player_list: HashMap::new(),
+            friends: Vec::new(),
             character_list: CharacterList::default(),
             character_being_deleted: None,
             sites: sites
@@ -1282,6 +1284,7 @@ impl Client {
                     // Always possible
                     ClientGeneral::ChatMsg(_)
                     | ClientGeneral::Command(_, _)
+                    | ClientGeneral::FriendAction(_)
                     | ClientGeneral::Terminate
                     | ClientGeneral::RequestPlugins(_) => &mut self.general_stream,
                 };
@@ -1575,6 +1578,8 @@ impl Client {
     }
 
     pub fn player_list(&self) -> &HashMap<Uid, PlayerInfo> { &self.player_list }
+
+    pub fn friends(&self) -> &[FriendInfo] { &self.friends }
 
     pub fn character_list(&self) -> &CharacterList { &self.character_list }
 
@@ -2265,6 +2270,16 @@ impl Client {
         self.send_msg(ClientGeneral::Command(name, args));
     }
 
+    /// Perform an action from the visual friends panel and refresh its
+    /// snapshot.
+    pub fn send_friend_action(&mut self, action: FriendAction) {
+        let refresh = !matches!(action, FriendAction::RequestList);
+        self.send_msg(ClientGeneral::FriendAction(action));
+        if refresh {
+            self.send_msg(ClientGeneral::FriendAction(FriendAction::RequestList));
+        }
+    }
+
     /// Remove all cached terrain
     pub fn clear_terrain(&mut self) {
         self.state.clear_terrain();
@@ -2809,6 +2824,9 @@ impl Client {
             ServerGeneral::ChatMsg(m) => frontend_events.push(Event::Chat(m)),
             ServerGeneral::ChatMode(m) => {
                 self.chat_mode = m;
+            },
+            ServerGeneral::FriendsUpdate(friends) => {
+                self.friends = friends;
             },
             ServerGeneral::SetPlayerEntity(uid) => {
                 if let Some(entity) = self.state.ecs().entity_from_uid(uid) {

@@ -1798,6 +1798,9 @@ impl PlayState for SessionState {
                             },
                         };
                     },
+                    HudEvent::FriendAction(action) => {
+                        self.client.borrow_mut().send_friend_action(action);
+                    },
                     HudEvent::CharacterSelection => {
                         global_state.audio.stop_all_music();
                         global_state.audio.stop_all_ambience();

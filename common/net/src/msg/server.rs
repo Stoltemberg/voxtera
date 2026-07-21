@@ -206,6 +206,7 @@ pub enum ServerGeneral {
     /// formatting the message and turning it into a speech bubble.
     ChatMsg(comp::ChatMsg),
     ChatMode(comp::ChatMode),
+    FriendsUpdate(Vec<super::FriendInfo>),
     SetPlayerEntity(Uid),
     TimeOfDay(TimeOfDay, Calendar, Time, TimeScale),
     EntitySync(sync::EntitySyncPackage),
@@ -387,6 +388,7 @@ impl ServerMsg {
                         ServerGeneral::PlayerListUpdate(_)
                         | ServerGeneral::ChatMsg(_)
                         | ServerGeneral::ChatMode(_)
+                        | ServerGeneral::FriendsUpdate(_)
                         | ServerGeneral::SetPlayerEntity(_)
                         | ServerGeneral::TimeOfDay(_, _, _, _)
                         | ServerGeneral::EntitySync(_)

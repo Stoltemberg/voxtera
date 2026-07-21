@@ -21,6 +21,32 @@ pub use self::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Relationship state shown by the social panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FriendStatus {
+    PendingOutgoing,
+    PendingIncoming,
+    Accepted,
+}
+
+/// Friend entry sent to the client UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendInfo {
+    pub alias: String,
+    pub status: FriendStatus,
+    pub online: bool,
+}
+
+/// Actions initiated by the visual friends panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FriendAction {
+    RequestList,
+    Add(String),
+    Accept(String),
+    Reject(String),
+    Remove(String),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PingMsg {
     Ping,

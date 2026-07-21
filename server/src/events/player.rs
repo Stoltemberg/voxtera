@@ -186,6 +186,23 @@ pub fn handle_client_disconnect(
     // already a disconnect event for this entity.
     let already_disconnected = !already_disconnected_clients.insert(entity);
 
+    // Keep the social presence snapshot accurate for online/offline filters.
+    if !already_disconnected {
+        let player_uuid = server
+            .state()
+            .ecs()
+            .read_storage::<comp::Player>()
+            .get(entity)
+            .map(|player| player.uuid());
+        if let Some(player_uuid) = player_uuid {
+            server
+                .state()
+                .ecs()
+                .write_resource::<crate::friends::FriendsResource>()
+                .player_offline(&player_uuid);
+        }
+    }
+
     let mut emit_logoff_event = true;
     let mut disconnected_event = None;
 

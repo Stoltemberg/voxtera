@@ -10,12 +10,13 @@ pub fn send_welcome_message(client: &Client, username: &str) {
         Content::Plain(format!("Bem-vindo ao Voxtera, {}!", username)),
     ));
 
-    // Controls tips
+    // Controls tips — keys match voxygen/src/settings/control.rs defaults
     client.send_fallible(ServerGeneral::server_msg(
         ChatType::Meta,
         Content::Plain(
-            "Dicas de controlos: WASD para mover, Espaço para saltar, Shift para correr, Tab para \
-             inventário, M para o mapa, T para conversar."
+            "Controles: WASD mover | Espaço saltar | Shift agachar/descer | E interagir \
+             | I inventário | C criação | P diário | M mapa | O amigos | Enter chat \
+             | / comandos | F montar | G lanterna | H saudar | J dançar | K sentar."
                 .to_string(),
         ),
     ));

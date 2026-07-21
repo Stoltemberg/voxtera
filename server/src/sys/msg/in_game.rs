@@ -272,6 +272,7 @@ impl Sys {
             | ClientGeneral::LodZoneRequest { .. }
             | ClientGeneral::ChatMsg(_)
             | ClientGeneral::Command(..)
+            | ClientGeneral::FriendAction(_)
             | ClientGeneral::Terminate
             | ClientGeneral::RequestPlugins(_) => {
                 debug!("Kicking possibly misbehaving client due to invalid client in game request");
