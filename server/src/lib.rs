@@ -1377,6 +1377,20 @@ impl Server {
     pub fn notify_players(&mut self, msg: ServerGeneral) { self.state.notify_players(msg); }
 
     fn process_command(&mut self, entity: EcsEntity, name: String, args: Vec<String>) {
+        // Handle custom Voxtera commands that are not in the upstream ServerChatCommand
+        // enum. These are processed before the standard command dispatch.
+        match name.as_str() {
+            "addfriend" => {
+                self.handle_addfriend(entity, args);
+                return;
+            },
+            "friends" => {
+                self.handle_friends(entity);
+                return;
+            },
+            _ => {},
+        }
+
         // Find the command object and run its handler.
         if let Ok(command) = name.parse::<ServerChatCommand>() {
             command.execute(self, entity, args);
@@ -1459,6 +1473,205 @@ impl Server {
         self.state
             .read_component_copied::<comp::Admin>(entity)
             .map(|admin| admin.0)
+    }
+
+    // -- Custom Voxtera chat commands ----------------------------------------
+
+    /// Handle `/addfriend <playername>` — send a friend request to another player.
+    fn handle_addfriend(&mut self, entity: EcsEntity, args: Vec<String>) {
+        let target_name = match args.first() {
+            Some(name) => name.clone(),
+            None => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain("Usage: /addfriend <playername>".to_string()),
+                    ),
+                );
+                return;
+            },
+        };
+
+        // Get the sender's Player UUID.
+        let from_uuid = {
+            let players = self.state.ecs().read_storage::<comp::Player>();
+            match players.get(entity) {
+                Some(player) => player.uuid(),
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain("Could not identify your player.".to_string()),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        // Look up the target player's UUID by alias.
+        let to_uuid = {
+            let friends = self.state.ecs().read_resource::<friends::FriendsResource>();
+            match friends.uuid_from_alias(&target_name) {
+                Some(uuid) => uuid,
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain(format!(
+                                "Player '{}' not found. They may need to have logged in at least once.",
+                                target_name
+                            )),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        // Send the friend request.
+        let mut friends = self.state.ecs().write_resource::<friends::FriendsResource>();
+        let result = friends.send_request(from_uuid, to_uuid);
+        match result {
+            friends::FriendRequestResult::Sent { to_alias } => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandInfo,
+                        Content::Plain(format!("Friend request sent to {}!", to_alias)),
+                    ),
+                );
+            },
+            friends::FriendRequestResult::AlreadyFriends { alias } => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandInfo,
+                        Content::Plain(format!("You are already friends with {}.", alias)),
+                    ),
+                );
+            },
+            friends::FriendRequestResult::AlreadyPending { alias } => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandInfo,
+                        Content::Plain(format!(
+                            "You already have a pending friend request to {}.",
+                            alias
+                        )),
+                    ),
+                );
+            },
+            friends::FriendRequestResult::CannotFriendSelf => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain("You cannot add yourself as a friend.".to_string()),
+                    ),
+                );
+            },
+            friends::FriendRequestResult::PlayerNotFound => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain(format!(
+                            "Player '{}' not found. They may need to have logged in at least once.",
+                            target_name
+                        )),
+                    ),
+                );
+            },
+        }
+    }
+
+    /// Handle `/friends` — list accepted friends and their online status.
+    fn handle_friends(&mut self, entity: EcsEntity) {
+        let from_uuid = {
+            let players = self.state.ecs().read_storage::<comp::Player>();
+            match players.get(entity) {
+                Some(player) => player.uuid(),
+                None => {
+                    self.notify_client(
+                        entity,
+                        ServerGeneral::server_msg(
+                            ChatType::CommandError,
+                            Content::Plain("Could not identify your player.".to_string()),
+                        ),
+                    );
+                    return;
+                },
+            }
+        };
+
+        // Collect friend data into owned values so we can drop the ECS borrow
+        // before calling notify_client.
+        let (accepted, pending) = {
+            let friends = self.state.ecs().read_resource::<friends::FriendsResource>();
+            let accepted = friends.get_accepted_friends(&from_uuid);
+            let pending = friends.get_pending_requests(&from_uuid);
+            // Also collect online statuses for accepted friends.
+            let accepted_with_status: Vec<(String, bool)> = accepted
+                .iter()
+                .map(|e| (e.alias.clone(), friends.is_online(&e.uuid)))
+                .collect();
+            let pending_info: Vec<(String, String)> = pending
+                .iter()
+                .map(|e| {
+                    let dir = match e.status {
+                        friends::FriendStatus::PendingIncoming => "wants to be your friend".to_string(),
+                        friends::FriendStatus::PendingOutgoing => "request sent".to_string(),
+                        _ => String::new(),
+                    };
+                    (e.alias.clone(), dir)
+                })
+                .collect();
+            (accepted_with_status, pending_info)
+        };
+
+        if accepted.is_empty() && pending.is_empty() {
+            self.notify_client(
+                entity,
+                ServerGeneral::server_msg(
+                    ChatType::CommandInfo,
+                    Content::Plain(
+                        "You have no friends yet. Use /addfriend <playername> to send a request!"
+                            .to_string(),
+                    ),
+                ),
+            );
+            return;
+        }
+
+        let mut lines = Vec::new();
+
+        if !accepted.is_empty() {
+            lines.push("=== Friends ===".to_string());
+            for (alias, online) in &accepted {
+                let status = if *online { "online" } else { "offline" };
+                lines.push(format!("  {} [{}]", alias, status));
+            }
+        }
+
+        if !pending.is_empty() {
+            lines.push("=== Pending Requests ===".to_string());
+            for (alias, direction) in &pending {
+                lines.push(format!("  {} ({})", alias, direction));
+            }
+        }
+
+        self.notify_client(
+            entity,
+            ServerGeneral::server_msg(
+                ChatType::CommandInfo,
+                Content::Plain(lines.join("\n")),
+            ),
+        );
     }
 
     pub fn number_of_players(&self) -> i64 {

@@ -140,10 +140,8 @@ impl FriendsResource {
                 .collect();
 
             for friend_uuid in notify_uuids {
-                self.pending_notifications.push((
-                    friend_uuid,
-                    format!("Your friend {} has come online!", alias),
-                ));
+                self.pending_notifications
+                    .push((friend_uuid, format!("Seu amigo {} ficou online!", alias)));
             }
 
             // Also notify this player about friends already online.
@@ -157,10 +155,8 @@ impl FriendsResource {
 
             for friend_uuid in online_friend_uuids {
                 if let Some(friend_alias) = self.aliases.get(&friend_uuid) {
-                    self.pending_notifications.push((
-                        uuid,
-                        format!("Your friend {} is online.", friend_alias),
-                    ));
+                    self.pending_notifications
+                        .push((uuid, format!("Seu amigo {} está online.", friend_alias)));
                 }
             }
         }
@@ -174,9 +170,7 @@ impl FriendsResource {
     }
 
     /// Returns true if the given UUID is currently online.
-    pub fn is_online(&self, uuid: &Uuid) -> bool {
-        self.online_players.contains(uuid)
-    }
+    pub fn is_online(&self, uuid: &Uuid) -> bool { self.online_players.contains(uuid) }
 
     // -- Friend operations -------------------------------------------------
 
@@ -248,14 +242,11 @@ impl FriendsResource {
             });
 
         // Add incoming pending entry on receiver's side so they can see the request.
-        self.friend_lists
-            .entry(to)
-            .or_default()
-            .push(FriendEntry {
-                uuid: from,
-                alias: from_alias.clone(),
-                status: FriendStatus::PendingIncoming,
-            });
+        self.friend_lists.entry(to).or_default().push(FriendEntry {
+            uuid: from,
+            alias: from_alias.clone(),
+            status: FriendStatus::PendingIncoming,
+        });
 
         // Notify the target if online.
         if self.online_players.contains(&to) {
@@ -278,9 +269,8 @@ impl FriendsResource {
             .friend_lists
             .get(&acceptor)
             .map(|list| {
-                list.iter().any(|f| {
-                    f.uuid == requester && f.status == FriendStatus::PendingIncoming
-                })
+                list.iter()
+                    .any(|f| f.uuid == requester && f.status == FriendStatus::PendingIncoming)
             })
             .unwrap_or(false);
 
@@ -386,6 +376,17 @@ impl FriendsResource {
         std::mem::take(&mut self.pending_notifications)
     }
 
+    /// Drain all pending notifications and resolve target UUIDs to ECS
+    /// entities. Returns `(target_entity, message)` pairs ready for
+    /// immediate delivery.
+    pub fn drain_notifications_with_entities(&mut self) -> Vec<(EcsEntity, String)> {
+        let notifications = std::mem::take(&mut self.pending_notifications);
+        notifications
+            .into_iter()
+            .filter_map(|(uuid, msg)| self.uuid_to_entity.get(&uuid).map(|&entity| (entity, msg)))
+            .collect()
+    }
+
     // -- Internal helpers --------------------------------------------------
 
     /// Promote a pending relationship to Accepted on both sides.
@@ -444,8 +445,7 @@ pub fn tick_friends_notifications(ecs: &specs::World) {
         if let Some(&entity) = uuid_to_entity.get(&target_uuid) {
             let clients = ecs.read_storage::<crate::Client>();
             if let Some(client) = clients.get(entity) {
-                let msg =
-                    ServerGeneral::server_msg(ChatType::CommandInfo, Content::Plain(message));
+                let msg = ServerGeneral::server_msg(ChatType::Meta, Content::Plain(message));
                 client.send_fallible(msg);
             }
         }

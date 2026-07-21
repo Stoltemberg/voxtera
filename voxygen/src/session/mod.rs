@@ -286,6 +286,15 @@ impl SessionState {
         for event in client.tick(self.inputs.clone(), dt)? {
             match event {
                 client::Event::Chat(m) => {
+                    // Play notification sound for private messages (Tells)
+                    if matches!(m.chat_type, ChatType::Tell(..)) {
+                        let sfx_triggers = self.scene.sfx_mgr.triggers.read();
+                        let sfx_trigger_item =
+                            sfx_triggers.0.get_key_value(&SfxEvent::Bleep);
+                        global_state
+                            .audio
+                            .emit_ui_sfx(sfx_trigger_item, Some(0.4), None);
+                    }
                     self.hud.new_message(m);
                 },
                 client::Event::GroupInventoryUpdate(item, uid) => {

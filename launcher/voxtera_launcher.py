@@ -2,7 +2,6 @@
 """
 Voxtera Game Launcher
 Downloads updates from GitHub releases and launches the game.
-GitHub repo: https://github.com/Stoltemberg/voxtera
 """
 
 import json
@@ -15,38 +14,79 @@ from tkinter import ttk, messagebox, filedialog
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 import zipfile
-import io
-import shutil
+
+# ── Path helpers ───────────────────────────────────────────────────────────────
+
+def get_base_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+BASE_DIR = get_base_dir()
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 GITHUB_REPO = "Stoltemberg/voxtera"
-GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voxtera_config.json")
+GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
+CONFIG_FILE = os.path.join(BASE_DIR, "voxtera_config.json")
 GAME_EXE = "Voxtera.exe"
-DEFAULT_INSTALL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game")
+DEFAULT_INSTALL_DIR = os.path.join(BASE_DIR, "game")
 
-# ── Config helpers ─────────────────────────────────────────────────────────────
+# ── Theme ──────────────────────────────────────────────────────────────────────
+BG_DARK = "#0d1117"
+BG_MEDIUM = "#161b22"
+BG_LIGHT = "#21262d"
+BG_CARD = "#1c2128"
+ACCENT = "#e94560"
+ACCENT_HOVER = "#c81e45"
+GREEN = "#3fb950"
+GREEN_DARK = "#238636"
+TEXT_PRIMARY = "#e6edf3"
+TEXT_SECONDARY = "#8b949e"
+TEXT_DIM = "#484f58"
+BORDER = "#30363d"
+
+# ── Config ─────────────────────────────────────────────────────────────────────
 
 def load_config():
+    defaults = {
+        "install_dir": DEFAULT_INSTALL_DIR,
+        "installed_version": None,
+    }
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    return {"install_dir": DEFAULT_INSTALL_DIR, "installed_version": None}
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                content = f.read()
+            try:
+                saved = json.loads(content)
+            except (json.JSONDecodeError, ValueError):
+                try:
+                    os.remove(CONFIG_FILE)
+                except:
+                    pass
+                return defaults
+            for key in defaults:
+                if key not in saved:
+                    saved[key] = defaults[key]
+            return saved
+        except Exception:
+            try:
+                os.remove(CONFIG_FILE)
+            except:
+                pass
+    return defaults
 
 def save_config(cfg):
     with open(CONFIG_FILE, "w") as f:
         json.dump(cfg, f, indent=2)
 
-# ── Network helpers ────────────────────────────────────────────────────────────
+# ── Network ────────────────────────────────────────────────────────────────────
 
 def api_get(url, timeout=30):
-    """GET a JSON API endpoint. Returns parsed JSON or raises."""
     req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "VoxteraLauncher"})
     with urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
 def download_file(url, dest, progress_cb=None):
-    """Download a file, calling progress_cb(bytes_read, total) periodically."""
     req = Request(url, headers={"User-Agent": "VoxteraLauncher"})
     with urlopen(req, timeout=120) as resp:
         total = int(resp.headers.get("Content-Length", 0))
@@ -62,10 +102,7 @@ def download_file(url, dest, progress_cb=None):
                 if progress_cb:
                     progress_cb(downloaded, total)
 
-# ── Version comparison ─────────────────────────────────────────────────────────
-
 def parse_version(v):
-    """Strip leading 'v' and split into int tuple for comparison."""
     if not v:
         return (0,)
     v = v.lstrip("v")
@@ -79,13 +116,12 @@ def parse_version(v):
 class VoxteraLauncher(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Voxtera Launcher")
-        self.geometry("520x420")
+        self.title("Voxtera")
+        self.geometry("520x700")
         self.resizable(False, False)
-        self.configure(bg="#1a1a2e")
+        self.configure(bg=BG_DARK)
 
         self.cfg = load_config()
-        self.latest_release = None
         self.latest_version = None
         self.download_url = None
         self._downloading = False
@@ -96,229 +132,254 @@ class VoxteraLauncher(tk.Tk):
     # ── UI ─────────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        bg = "#1a1a2e"
-        fg = "#e0e0e0"
-        accent = "#e94560"
+        # Main container
+        main = tk.Frame(self, bg=BG_DARK)
+        main.pack(fill="both", expand=True, padx=30, pady=20)
 
-        # Logo / title
-        tk.Label(self, text="VOXTERA", font=("Consolas", 36, "bold"),
-                 bg=bg, fg=accent).pack(pady=(30, 5))
-        tk.Label(self, text="Voxel RPG", font=("Consolas", 12),
-                 bg=bg, fg=fg).pack(pady=(0, 20))
+        # ── Logo ───────────────────────────────────────────────────────────────
+        # When frozen (PyInstaller), files are extracted to sys._MEIPASS temp dir
+        if getattr(sys, 'frozen', False):
+            logo_path = os.path.join(sys._MEIPASS, "voxtera_logo.png")
+        else:
+            logo_path = os.path.join(BASE_DIR, "voxtera_logo.png")
 
-        # Version info
-        self.version_label = tk.Label(self, text="Checking for updates…",
-                                       font=("Consolas", 10), bg=bg, fg="#aaa")
-        self.version_label.pack(pady=(0, 5))
+        if os.path.exists(logo_path):
+            try:
+                from PIL import Image, ImageTk
+                img = Image.open(logo_path)
+                img = img.resize((250, int(250 * img.height / img.width)), Image.LANCZOS)
+                self._logo_img = ImageTk.PhotoImage(img)
+                tk.Label(main, image=self._logo_img, bg=BG_DARK).pack(pady=(10, 5))
+            except ImportError:
+                tk.Label(main, text="VOXTERA", font=("Consolas", 42, "bold"),
+                         bg=BG_DARK, fg=ACCENT).pack(pady=(20, 5))
+        else:
+            tk.Label(main, text="VOXTERA", font=("Consolas", 42, "bold"),
+                     bg=BG_DARK, fg=ACCENT).pack(pady=(20, 5))
 
-        self.local_ver_label = tk.Label(self, text="", font=("Consolas", 9),
-                                         bg=bg, fg="#777")
-        self.local_ver_label.pack(pady=(0, 10))
+        tk.Label(main, text="Voxel RPG", font=("Consolas", 12),
+                 bg=BG_DARK, fg=TEXT_SECONDARY).pack(pady=(0, 20))
 
-        # Progress bar
-        self.progress = ttk.Progressbar(self, length=400, mode="determinate")
-        self.progress.pack(pady=5)
+        # ── Status ─────────────────────────────────────────────────────────────
+        status_frame = tk.Frame(main, bg=BG_MEDIUM, highlightbackground=BORDER,
+                                highlightthickness=1)
+        status_frame.pack(fill="x", pady=(0, 10), ipady=10)
+
+        self.version_label = tk.Label(status_frame, text="Verificando atualizações...",
+                                       font=("Consolas", 10), bg=BG_MEDIUM, fg=TEXT_SECONDARY)
+        self.version_label.pack(pady=(5, 2))
+
+        self.local_ver_label = tk.Label(status_frame, text="", font=("Consolas", 9),
+                                         bg=BG_MEDIUM, fg=TEXT_DIM)
+        self.local_ver_label.pack(pady=(0, 5))
+
+        # ── Progress ───────────────────────────────────────────────────────────
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure("Voxtera.Horizontal.TProgressbar",
+                        troughcolor=BG_LIGHT, background=ACCENT,
+                        darkcolor=ACCENT, lightcolor=ACCENT,
+                        bordercolor=BG_DARK, relief="flat")
+
+        self.progress = ttk.Progressbar(main, mode="determinate",
+                                         style="Voxtera.Horizontal.TProgressbar")
+        self.progress.pack(fill="x", pady=(0, 3))
         self.progress["value"] = 0
 
-        self.progress_label = tk.Label(self, text="", font=("Consolas", 9),
-                                        bg=bg, fg="#aaa")
-        self.progress_label.pack(pady=(0, 10))
+        self.progress_label = tk.Label(main, text="", font=("Consolas", 8),
+                                        bg=BG_DARK, fg=TEXT_DIM)
+        self.progress_label.pack(anchor="w", pady=(0, 15))
 
-        # Buttons frame
-        btn_frame = tk.Frame(self, bg=bg)
-        btn_frame.pack(pady=10)
+        # ── Buttons ────────────────────────────────────────────────────────────
+        btn_style = {"font": ("Consolas", 14, "bold"), "width": 22, "height": 2,
+                     "bd": 0, "cursor": "hand2", "relief": "flat"}
 
-        style_btn = {"font": ("Consolas", 12, "bold"), "width": 14, "height": 2,
-                     "bd": 0, "cursor": "hand2"}
+        self.play_btn = tk.Button(main, text="▶  JOGAR", bg=GREEN,
+                                   fg=TEXT_PRIMARY, activebackground=GREEN_DARK,
+                                   command=self._play, **btn_style)
+        self.play_btn.pack(pady=(0, 8))
 
-        self.play_btn = tk.Button(btn_frame, text="▶  PLAY", bg="#0f3460",
-                                   fg=fg, activebackground="#16213e",
-                                   command=self._play, **style_btn)
-        self.play_btn.grid(row=0, column=0, padx=10)
-
-        self.update_btn = tk.Button(btn_frame, text="⟳  UPDATE", bg=accent,
-                                     fg="#fff", activebackground="#c81e45",
-                                     command=self._update, **style_btn)
-        self.update_btn.grid(row=0, column=1, padx=10)
-
+        self.update_btn = tk.Button(main, text="⟳  ATUALIZAR", bg=ACCENT,
+                                     fg=TEXT_PRIMARY, activebackground=ACCENT_HOVER,
+                                     command=self._update, **btn_style)
+        self.update_btn.pack(pady=(0, 15))
         self.update_btn.config(state="disabled")
 
-        # Install dir label
-        dir_frame = tk.Frame(self, bg=bg)
-        dir_frame.pack(pady=(15, 0), fill="x", padx=30)
-        tk.Label(dir_frame, text="Install:", font=("Consolas", 8),
-                 bg=bg, fg="#555").pack(side="left")
-        self.dir_label = tk.Label(dir_frame, text=self.cfg["install_dir"],
-                                   font=("Consolas", 8), bg=bg, fg="#555",
-                                   anchor="w")
-        self.dir_label.pack(side="left", fill="x", expand=True)
-        tk.Button(dir_frame, text="📁", font=("Consolas", 8), bg=bg, fg="#888",
-                  bd=0, command=self._choose_dir).pack(side="right")
+        # ── Install dir ────────────────────────────────────────────────────────
+        dir_frame = tk.Frame(main, bg=BG_CARD, highlightbackground=BORDER,
+                             highlightthickness=1)
+        dir_frame.pack(fill="x", pady=(0, 10), ipady=5)
 
-    def _choose_dir(self):
-        d = filedialog.askdirectory(initialdir=self.cfg["install_dir"])
+        tk.Label(dir_frame, text="Pasta:", font=("Consolas", 9),
+                 bg=BG_CARD, fg=TEXT_DIM).pack(side="left", padx=10)
+
+        self.dir_label = tk.Label(dir_frame, text=self.cfg["install_dir"],
+                                   font=("Consolas", 8), bg=BG_CARD, fg=TEXT_SECONDARY)
+        self.dir_label.pack(side="left", expand=True, fill="x", padx=5)
+
+        tk.Button(dir_frame, text="Alterar", bg=BG_LIGHT, fg=TEXT_PRIMARY,
+                  font=("Consolas", 8), bd=0, cursor="hand2",
+                  command=self._change_install_dir).pack(side="right", padx=10)
+
+        # ── Footer ─────────────────────────────────────────────────────────────
+        tk.Label(main, text="v0.1.0", font=("Consolas", 8),
+                 bg=BG_DARK, fg=TEXT_DIM).pack(side="bottom")
+
+    # ── Install Check ─────────────────────────────────────────────────────────
+
+    def _is_installed(self):
+        """Check if the game EXE actually exists in the install directory."""
+        game_path = os.path.join(self.cfg["install_dir"], GAME_EXE)
+        return os.path.isfile(game_path)
+
+    # ── Update Check ───────────────────────────────────────────────────────────
+
+    def _check_updates_thread(self):
+        threading.Thread(target=self._do_check_updates, daemon=True).start()
+
+    def _do_check_updates(self):
+        try:
+            # First check if game is actually installed
+            if not self._is_installed():
+                self.cfg["installed_version"] = None
+                save_config(self.cfg)
+                self.after(0, lambda: self._set_status("Jogo não instalado", ACCENT))
+                self.after(0, lambda: self.local_ver_label.config(text=""))
+                self.after(0, lambda: self.play_btn.config(state="disabled"))
+            else:
+                local_ver = self.cfg.get("installed_version")
+                if local_ver:
+                    self.after(0, lambda: self.local_ver_label.config(
+                        text=f"Instalado: {local_ver}"))
+                    self.after(0, lambda: self.play_btn.config(state="normal"))
+
+            releases = api_get(GITHUB_API)
+            if not releases:
+                if self._is_installed():
+                    self.after(0, lambda: self._set_status(
+                        "✓ Instalado (sem verificação de atualização)", GREEN))
+                else:
+                    self.after(0, lambda: self._set_status(
+                        "Nenhum release encontrado", ACCENT))
+                return
+
+            release = releases[0]
+            self.latest_version = release["tag_name"]
+
+            for asset in release.get("assets", []):
+                if asset["name"].endswith(".zip"):
+                    self.download_url = asset["browser_download_url"]
+                    break
+
+            local_ver = self.cfg.get("installed_version")
+            if self.download_url:
+                if self._is_installed() and local_ver and parse_version(local_ver) >= parse_version(self.latest_version):
+                    self.after(0, lambda: self._set_status(
+                        f"✓ Atualizado ({self.latest_version})", GREEN))
+                    self.after(0, lambda: self.play_btn.config(state="normal"))
+                else:
+                    self.after(0, lambda: self._set_status(
+                        f"Nova versão: {self.latest_version}", ACCENT))
+                    self.after(0, lambda: self.update_btn.config(state="normal"))
+                    if self._is_installed():
+                        self.after(0, lambda: self.play_btn.config(state="normal"))
+
+        except Exception as e:
+            self.after(0, lambda: self._set_status(f"Erro: {str(e)[:50]}", ACCENT))
+
+    def _set_status(self, text, color=TEXT_SECONDARY):
+        self.version_label.config(text=text, fg=color)
+
+    # ── Download ───────────────────────────────────────────────────────────────
+
+    def _update(self):
+        if self._downloading or not self.download_url:
+            return
+        self._downloading = True
+        self.update_btn.config(state="disabled", text="BAIXANDO...")
+        self.play_btn.config(state="disabled")
+        threading.Thread(target=self._do_update, daemon=True).start()
+
+    def _do_update(self):
+        try:
+            install_dir = self.cfg["install_dir"]
+            os.makedirs(install_dir, exist_ok=True)
+            zip_path = os.path.join(install_dir, "voxtera_update.zip")
+
+            def progress(downloaded, total):
+                if total > 0:
+                    pct = (downloaded / total) * 100
+                    mb = downloaded / (1024 * 1024)
+                    total_mb = total / (1024 * 1024)
+                    self.after(0, lambda: self.progress.config(value=pct))
+                    self.after(0, lambda: self.progress_label.config(
+                        text=f"{mb:.1f} / {total_mb:.1f} MB ({pct:.0f}%)"))
+
+            self.after(0, lambda: self._set_status("Baixando...", TEXT_SECONDARY))
+            download_file(self.download_url, zip_path, progress)
+
+            self.after(0, lambda: self._set_status("Extraindo...", TEXT_SECONDARY))
+            self.after(0, lambda: self.progress.config(mode="indeterminate"))
+            self.after(0, lambda: self.progress.start(15))
+
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(install_dir)
+            os.remove(zip_path)
+
+            self.cfg["installed_version"] = self.latest_version
+            save_config(self.cfg)
+
+            self.after(0, lambda: self.progress.stop())
+            self.after(0, lambda: self.progress.config(mode="determinate", value=100))
+            self.after(0, lambda: self.progress_label.config(text=""))
+            self.after(0, lambda: self._set_status(
+                f"✓ Instalado ({self.latest_version})", GREEN))
+            self.after(0, lambda: self.local_ver_label.config(
+                text=f"Instalado: {self.latest_version}"))
+            self.after(0, lambda: self.play_btn.config(state="normal"))
+            self.after(0, lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="disabled"))
+
+        except Exception as e:
+            self.after(0, lambda: self._set_status(f"Erro: {str(e)[:50]}", ACCENT))
+            self.after(0, lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="normal"))
+        finally:
+            self._downloading = False
+
+    # ── Actions ────────────────────────────────────────────────────────────────
+
+    def _play(self):
+        game_path = os.path.join(self.cfg["install_dir"], GAME_EXE)
+        if os.path.exists(game_path):
+            subprocess.Popen([game_path], cwd=self.cfg["install_dir"])
+            self.destroy()
+        else:
+            messagebox.showerror("Erro", f"{GAME_EXE} não encontrado.\nBaixe o jogo primeiro.")
+            d = filedialog.askdirectory(title="Selecione a pasta de instalação")
+            if d:
+                self.cfg["install_dir"] = d
+                save_config(self.cfg)
+                self.dir_label.config(text=d)
+
+    def _change_install_dir(self):
+        d = filedialog.askdirectory(title="Selecione a pasta de instalação")
         if d:
             self.cfg["install_dir"] = d
             save_config(self.cfg)
             self.dir_label.config(text=d)
+            # Check if game exists in new directory
+            if self._is_installed():
+                self.cfg["installed_version"] = self.cfg.get("installed_version") or "unknown"
+                save_config(self.cfg)
+                self.play_btn.config(state="normal")
+                self._set_status("✓ Jogo encontrado na nova pasta", GREEN)
+            else:
+                self.cfg["installed_version"] = None
+                save_config(self.cfg)
+                self.play_btn.config(state="disabled")
+                self._set_status("Jogo não instalado", ACCENT)
+                self.local_ver_label.config(text="")
 
-    def _set_status(self, text):
-        self.version_label.config(text=text)
-
-    def _set_progress(self, value, maximum=100):
-        self.progress["value"] = value
-        self.progress["maximum"] = maximum
-
-    def _set_progress_text(self, text):
-        self.progress_label.config(text=text)
-
-    # ── Update check (background) ─────────────────────────────────────────────
-
-    def _check_updates_thread(self):
-        t = threading.Thread(target=self._check_updates_worker, daemon=True)
-        t.start()
-
-    def _check_updates_worker(self):
-        try:
-            release = api_get(GITHUB_API)
-            self.latest_release = release
-            self.latest_version = release.get("tag_name", "unknown")
-
-            # Find ZIP asset
-            for asset in release.get("assets", []):
-                name = asset["name"].lower()
-                if name.endswith(".zip"):
-                    self.download_url = asset["browser_download_url"]
-                    break
-
-            self.after(0, self._on_check_done)
-        except Exception as e:
-            self.after(0, lambda: self._set_status(f"Update check failed: {e}"))
-            self.after(0, lambda: self._update_local_ver())
-
-    def _on_check_done(self):
-        self._update_local_ver()
-        if self._has_update():
-            self._set_status(f"Update available: {self.latest_version}")
-            self.update_btn.config(state="normal")
-        else:
-            self._set_status("Up to date ✓")
-            self.update_btn.config(state="disabled")
-
-    def _update_local_ver(self):
-        local = self.cfg.get("installed_version")
-        if local:
-            self.local_ver_label.config(text=f"Installed: {local}")
-        else:
-            self.local_ver_label.config(text="Not installed")
-
-    def _has_update(self):
-        if not self.cfg.get("installed_version"):
-            return True
-        return parse_version(self.latest_version) > parse_version(self.cfg["installed_version"])
-
-    # ── Download / Update ─────────────────────────────────────────────────────
-
-    def _update(self):
-        if self._downloading:
-            return
-        if not self.download_url:
-            messagebox.showerror("Error", "No download URL found.")
-            return
-        self._downloading = True
-        self.update_btn.config(state="disabled", text="Updating…")
-        self.play_btn.config(state="disabled")
-        t = threading.Thread(target=self._download_worker, daemon=True)
-        t.start()
-
-    def _download_worker(self):
-        try:
-            install_dir = self.cfg["install_dir"]
-            os.makedirs(install_dir, exist_ok=True)
-
-            def on_progress(read, total):
-                if total > 0:
-                    pct = read / total * 100
-                    mb_read = read / (1024 * 1024)
-                    mb_total = total / (1024 * 1024)
-                    self.after(0, self._set_progress, pct)
-                    self.after(0, self._set_progress_text,
-                               f"{mb_read:.1f} / {mb_total:.1f} MB")
-
-            # Download ZIP to temp file
-            zip_path = os.path.join(install_dir, "_update.zip")
-            self.after(0, self._set_progress_text, "Downloading…")
-            download_file(self.download_url, zip_path, on_progress)
-
-            # Extract
-            self.after(0, self._set_progress_text, "Extracting…")
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                # Detect top-level folder in ZIP (e.g. "voxtera-0.1.0/...")
-                top_levels = set()
-                for name in zf.namelist():
-                    parts = name.split("/")
-                    if parts[0]:
-                        top_levels.add(parts[0])
-
-                if len(top_levels) == 1 and not any(
-                    name == list(top_levels)[0] + "/" + GAME_EXE for name in zf.namelist()
-                ):
-                    # Strip top-level dir if it's just a wrapper
-                    strip_prefix = list(top_levels)[0] + "/"
-                    for member in zf.namelist():
-                        if member.startswith(strip_prefix):
-                            rel = member[len(strip_prefix):]
-                            if not rel:
-                                continue
-                            target = os.path.join(install_dir, rel)
-                            if member.endswith("/"):
-                                os.makedirs(target, exist_ok=True)
-                            else:
-                                os.makedirs(os.path.dirname(target), exist_ok=True)
-                                with zf.open(member) as src, open(target, "wb") as dst:
-                                    shutil.copyfileobj(src, dst)
-                else:
-                    zf.extractall(install_dir)
-
-            # Cleanup temp zip
-            os.remove(zip_path)
-
-            # Save version
-            self.cfg["installed_version"] = self.latest_version
-            save_config(self.cfg)
-
-            self.after(0, self._on_update_done)
-        except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Update Error", str(e)))
-            self.after(0, self._on_update_done)
-
-    def _on_update_done(self):
-        self._downloading = False
-        self._set_progress(100)
-        self._set_progress_text("Done ✓")
-        self._update_local_ver()
-        self.play_btn.config(state="normal")
-        if self._has_update():
-            self.update_btn.config(state="normal", text="⟳  UPDATE")
-        else:
-            self.update_btn.config(state="disabled", text="⟳  UPDATE")
-
-    # ── Play ───────────────────────────────────────────────────────────────────
-
-    def _play(self):
-        exe = os.path.join(self.cfg["install_dir"], GAME_EXE)
-        if not os.path.exists(exe):
-            messagebox.showerror("Game Not Found",
-                                 f"{GAME_EXE} not found in:\n{self.cfg['install_dir']}\n\n"
-                                 "Click UPDATE to download the game first.")
-            return
-        try:
-            subprocess.Popen([exe], cwd=self.cfg["install_dir"])
-            self.destroy()
-        except Exception as e:
-            messagebox.showerror("Launch Error", str(e))
-
-# ── Entry point ────────────────────────────────────────────────────────────────
+# ── Entry Point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     app = VoxteraLauncher()

@@ -8,6 +8,7 @@ use crate::{
     automod::AutoMod,
     character_creator,
     client::Client,
+    friends::FriendsResource,
     persistence::{character_loader::CharacterLoader, character_updater::CharacterUpdater},
 };
 #[cfg(feature = "worldgen")]
@@ -55,6 +56,7 @@ impl Sys {
         editable_settings: &ReadExpect<'_, EditableSettings>,
         censor: &ReadExpect<'_, Arc<censor::Censor>>,
         automod: &AutoMod,
+        friends: &mut FriendsResource,
         msg: ClientGeneral,
         time: Time,
         #[cfg(feature = "worldgen")] index: &ReadExpect<'_, IndexOwned>,
@@ -88,6 +90,8 @@ impl Sys {
             if let Some(_player_uid) = uids.get(entity) {
                 if let Some(player) = players.get(entity) {
                     crate::welcome::send_welcome_message(client, &player.alias);
+                    // Register player as online in friends system and notify friends
+                    friends.player_online(player.uuid(), player.alias.clone(), entity);
                 }
             }
 
@@ -310,6 +314,7 @@ pub struct Data<'a> {
     censor: ReadExpect<'a, Arc<censor::Censor>>,
     automod: ReadExpect<'a, AutoMod>,
     time: ReadExpect<'a, Time>,
+    friends: WriteExpect<'a, FriendsResource>,
     #[cfg(feature = "worldgen")]
     index: ReadExpect<'a, IndexOwned>,
     world: ReadExpect<'a, Arc<World>>,
@@ -327,7 +332,6 @@ impl<'a> System<'a> for Sys {
 
     fn run(_job: &mut Job<Self>, mut data: Self::SystemData) {
         let mut emitters = data.events.get_emitters();
-
         for (entity, client) in (&data.entities, &mut data.clients).join() {
             let _ = super::try_recv_all(client, 1, |client, msg| {
                 Self::handle_client_character_screen_msg(
@@ -343,6 +347,7 @@ impl<'a> System<'a> for Sys {
                     &data.editable_settings,
                     &data.censor,
                     &data.automod,
+                    &mut data.friends,
                     msg,
                     *data.time,
                     #[cfg(feature = "worldgen")]
@@ -350,6 +355,17 @@ impl<'a> System<'a> for Sys {
                     &data.world,
                 )
             });
+        }
+
+        // Deliver queued friend-online notifications as Meta chat messages.
+        let notifications = data.friends.drain_notifications_with_entities();
+        for (target_entity, message) in notifications {
+            if let Some(client) = data.clients.get(target_entity) {
+                client.send_fallible(ServerGeneral::server_msg(
+                    ChatType::Meta,
+                    Content::Plain(message),
+                ));
+            }
         }
     }
 }
