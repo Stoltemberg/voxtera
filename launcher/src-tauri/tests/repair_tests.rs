@@ -1,6 +1,9 @@
 use std::fs;
 
-use launcher_core::{ArchiveMetadata, Channel, ManagedFile, Manifest, plan_repair};
+use launcher_core::{
+    ArchiveMetadata, Channel, InstallManager, ManagedFile, Manifest, PromotionRequest, plan_repair,
+    prepare_repair_staging,
+};
 use semver::Version;
 use sha2::{Digest, Sha256};
 
@@ -94,4 +97,68 @@ fn repair_rejects_zero_worker_concurrency_and_invalid_manifest() {
     assert!(plan_repair(temp.path(), &invalid, 2).is_err());
     let valid = manifest(&[("Voxtera.exe", b"game")]);
     assert!(plan_repair(temp.path(), &valid, 0).is_err());
+}
+
+#[test]
+fn repaired_staging_preserves_real_unmanaged_files_through_atomic_promotion() {
+    let temp = tempfile::tempdir().unwrap();
+    let live = temp.path().join("game");
+    let manager = InstallManager::new(live.clone());
+    let manifest = manifest(&[
+        ("Voxtera.exe", b"new-game"),
+        ("assets/managed.bin", b"new-managed"),
+    ]);
+    write(&live.join("Voxtera.exe"), b"old-game");
+    write(&live.join("assets/managed.bin"), b"corrupt");
+    write(&live.join("mods/player-created.mod"), b"keep-unmanaged");
+    write(&live.join("userdata/save.ron"), b"keep-save");
+    let staging = manager.create_staging().unwrap();
+    write(&staging.join("Voxtera.exe"), b"new-game");
+    write(&staging.join("assets/managed.bin"), b"new-managed");
+
+    let confirmed = plan_repair(&live, &manifest, 2).unwrap().confirm();
+    let copied = prepare_repair_staging(&live, &staging, &manifest, &confirmed).unwrap();
+    assert_eq!(copied, 1);
+    manager
+        .promote(PromotionRequest {
+            staging_dir: staging,
+            failure_point: None,
+        })
+        .unwrap();
+
+    assert_eq!(fs::read(live.join("Voxtera.exe")).unwrap(), b"new-game");
+    assert_eq!(
+        fs::read(live.join("assets/managed.bin")).unwrap(),
+        b"new-managed"
+    );
+    assert_eq!(
+        fs::read(live.join("mods/player-created.mod")).unwrap(),
+        b"keep-unmanaged"
+    );
+    assert_eq!(
+        fs::read(live.join("userdata/save.ron")).unwrap(),
+        b"keep-save"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn repair_planner_marks_managed_file_under_junction_invalid() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("target");
+    let live = temp.path().join("game");
+    fs::create_dir(&target).unwrap();
+    fs::write(target.join("Voxtera.exe"), b"game").unwrap();
+    let status = std::process::Command::new("cmd")
+        .args(["/c", "mklink", "/J"])
+        .arg(&live)
+        .arg(&target)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let plan = plan_repair(&live, &manifest(&[("Voxtera.exe", b"game")]), 1).unwrap();
+
+    assert_eq!(plan.invalid_files, vec!["Voxtera.exe"]);
 }

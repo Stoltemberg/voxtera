@@ -1,14 +1,26 @@
 use std::{
     collections::{HashMap, HashSet},
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
 
 use sha2::{Digest, Sha256};
 use zip::ZipArchive;
 
-use crate::{IntegrityError, Manifest, verify_file};
+use crate::{IntegrityError, Manifest, integrity::is_link_or_reparse, verify_file};
+
+const EOCD_MIN_BYTES: usize = 22;
+const MAX_ZIP_COMMENT_BYTES: usize = u16::MAX as usize;
+const MAX_EOCD_SEARCH_BYTES: usize = EOCD_MIN_BYTES + MAX_ZIP_COMMENT_BYTES;
+const MAX_CENTRAL_DIRECTORY_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_PREFLIGHT_ENTRIES: usize = 8_192;
+const CONSERVATIVE_ENTRY_METADATA_BYTES: usize = 2_048;
+const ZIP_PARSER_MEMORY_BUDGET_BYTES: usize = MAX_CENTRAL_DIRECTORY_BYTES as usize
+    + MAX_PREFLIGHT_ENTRIES * CONSERVATIVE_ENTRY_METADATA_BYTES
+    + MAX_EOCD_SEARCH_BYTES
+    + 64 * 1024;
+const _: () = assert!(ZIP_PARSER_MEMORY_BUDGET_BYTES < 32 * 1024 * 1024);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArchiveLimits {
@@ -40,6 +52,8 @@ pub enum ArchiveError {
     Manifest,
     #[error("archive is unsafe: {0}")]
     Unsafe(String),
+    #[error("ZIP preflight rejected the archive: {0}")]
+    Preflight(String),
     #[error("archive I/O failed")]
     Io(#[source] std::io::Error),
     #[error("ZIP decoding failed")]
@@ -58,6 +72,7 @@ pub fn extract_to_staging(
         manifest.archive.size,
         &manifest.archive.sha256,
     )?;
+    preflight_zip(archive_path, limits)?;
     if limits.max_entries == 0 {
         return Err(ArchiveError::Unsafe("entry ceiling is zero".to_owned()));
     }
@@ -71,7 +86,7 @@ pub fn extract_to_staging(
         .ok_or_else(|| ArchiveError::Unsafe("staging directory has no parent".to_owned()))?;
     ensure_real_directory(parent)?;
     fs::create_dir(staging_dir).map_err(ArchiveError::Io)?;
-    if is_link_or_reparse(staging_dir)? {
+    if is_link_or_reparse(staging_dir).map_err(ArchiveError::Io)? {
         let _ = fs::remove_dir(staging_dir);
         return Err(ArchiveError::Unsafe(
             "staging directory is a link or reparse point".to_owned(),
@@ -247,7 +262,10 @@ fn is_windows_device_name(component: &str) -> bool {
             .strip_prefix("COM")
             .or_else(|| stem.strip_prefix("LPT"))
             .is_some_and(|number| {
-                matches!(number, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+                matches!(
+                    number,
+                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                )
             })
 }
 
@@ -304,7 +322,7 @@ fn create_real_directories(root: &Path, relative: &str) -> Result<(), ArchiveErr
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {},
             Err(error) => return Err(ArchiveError::Io(error)),
         }
-        if is_link_or_reparse(&current)? {
+        if is_link_or_reparse(&current).map_err(ArchiveError::Io)? {
             return Err(ArchiveError::Unsafe(
                 "staging path traverses a link or reparse point".to_owned(),
             ));
@@ -320,26 +338,90 @@ fn create_real_directories(root: &Path, relative: &str) -> Result<(), ArchiveErr
 
 fn ensure_real_directory(path: &Path) -> Result<(), ArchiveError> {
     fs::create_dir_all(path).map_err(ArchiveError::Io)?;
-    if !fs::metadata(path).map_err(ArchiveError::Io)?.is_dir() || is_link_or_reparse(path)? {
+    if !fs::metadata(path).map_err(ArchiveError::Io)?.is_dir()
+        || is_link_or_reparse(path).map_err(ArchiveError::Io)?
+    {
         return Err(ArchiveError::Unsafe("staging parent is unsafe".to_owned()));
     }
     Ok(())
 }
 
-pub(crate) fn is_link_or_reparse(path: &Path) -> Result<bool, ArchiveError> {
-    let metadata = fs::symlink_metadata(path).map_err(ArchiveError::Io)?;
-    if metadata.file_type().is_symlink() {
-        return Ok(true);
+fn preflight_zip(path: &Path, limits: ArchiveLimits) -> Result<(), ArchiveError> {
+    let mut file = File::open(path).map_err(ArchiveError::Io)?;
+    let length = file.metadata().map_err(ArchiveError::Io)?.len();
+    let search_len = usize::try_from(length.min(MAX_EOCD_SEARCH_BYTES as u64))
+        .map_err(|_| ArchiveError::Preflight("archive length overflow".to_owned()))?;
+    if search_len < EOCD_MIN_BYTES {
+        return Err(ArchiveError::Preflight("missing EOCD".to_owned()));
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+    file.seek(SeekFrom::End(-(search_len as i64)))
+        .map_err(ArchiveError::Io)?;
+    let mut tail = vec![0_u8; search_len];
+    file.read_exact(&mut tail).map_err(ArchiveError::Io)?;
+    let eocd_in_tail = tail
+        .windows(4)
+        .rposition(|window| window == b"PK\x05\x06")
+        .ok_or_else(|| ArchiveError::Preflight("missing EOCD".to_owned()))?;
+    if eocd_in_tail + EOCD_MIN_BYTES > tail.len() {
+        return Err(ArchiveError::Preflight("truncated EOCD".to_owned()));
+    }
+    let eocd = &tail[eocd_in_tail..];
+    let comment_length = read_u16(eocd, 20)? as usize;
+    if eocd_in_tail + EOCD_MIN_BYTES + comment_length != tail.len() {
+        return Err(ArchiveError::Preflight(
+            "EOCD does not terminate the archive".to_owned(),
+        ));
+    }
+    if eocd_in_tail >= 20 && &tail[eocd_in_tail - 20..eocd_in_tail - 16] == b"PK\x06\x07" {
+        return Err(ArchiveError::Preflight("ZIP64 is not supported".to_owned()));
+    }
+    let disk = read_u16(eocd, 4)?;
+    let central_disk = read_u16(eocd, 6)?;
+    let entries_on_disk = read_u16(eocd, 8)?;
+    let entries = read_u16(eocd, 10)?;
+    let central_size = read_u32(eocd, 12)?;
+    let central_offset = read_u32(eocd, 16)?;
+    if disk != 0 || central_disk != 0 || entries_on_disk != entries {
+        return Err(ArchiveError::Preflight(
+            "multi-disk ZIP is not supported".to_owned(),
+        ));
+    }
+    if entries == u16::MAX || central_size == u32::MAX || central_offset == u32::MAX {
+        return Err(ArchiveError::Preflight("ZIP64 is not supported".to_owned()));
+    }
+    let entries = entries as usize;
+    if entries > limits.max_entries || entries > MAX_PREFLIGHT_ENTRIES {
+        return Err(ArchiveError::Preflight(
+            "central directory entry ceiling exceeded".to_owned(),
+        ));
+    }
+    if central_size as u64 > MAX_CENTRAL_DIRECTORY_BYTES {
+        return Err(ArchiveError::Preflight(
+            "central directory byte ceiling exceeded".to_owned(),
+        ));
+    }
+    let eocd_absolute = length - search_len as u64 + eocd_in_tail as u64;
+    let central_end = (central_offset as u64)
+        .checked_add(central_size as u64)
+        .ok_or_else(|| ArchiveError::Preflight("central directory overflow".to_owned()))?;
+    if central_end != eocd_absolute {
+        return Err(ArchiveError::Preflight(
+            "central directory bounds are inconsistent".to_owned(),
+        ));
+    }
+    Ok(())
+}
 
-        Ok(metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
-    }
-    #[cfg(not(windows))]
-    {
-        Ok(false)
-    }
+fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, ArchiveError> {
+    let raw = bytes
+        .get(offset..offset + 2)
+        .ok_or_else(|| ArchiveError::Preflight("truncated EOCD".to_owned()))?;
+    Ok(u16::from_le_bytes([raw[0], raw[1]]))
+}
+
+fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, ArchiveError> {
+    let raw = bytes
+        .get(offset..offset + 4)
+        .ok_or_else(|| ArchiveError::Preflight("truncated EOCD".to_owned()))?;
+    Ok(u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]))
 }

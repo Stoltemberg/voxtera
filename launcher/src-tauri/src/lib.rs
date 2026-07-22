@@ -28,7 +28,9 @@ pub use release::{
     GitHubAsset, GitHubRelease, PreviewRelease, ReleaseAsset, ReleaseClient, ReleaseError,
     select_release,
 };
-pub use repair::{ConfirmedRepairPlan, RepairError, RepairPlan, plan_repair};
+pub use repair::{
+    ConfirmedRepairPlan, RepairError, RepairPlan, plan_repair, prepare_repair_staging,
+};
 
 #[cfg(test)] mod target_contract;
 

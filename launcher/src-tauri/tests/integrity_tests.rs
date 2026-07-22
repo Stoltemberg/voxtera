@@ -1,7 +1,8 @@
 use std::{fs, io::Write, path::Path};
 
 use launcher_core::{
-    ArchiveLimits, ArchiveMetadata, Channel, ManagedFile, Manifest, extract_to_staging, verify_file,
+    ArchiveError, ArchiveLimits, ArchiveMetadata, Channel, ManagedFile, Manifest,
+    extract_to_staging, verify_file,
 };
 use semver::Version;
 use sha2::{Digest, Sha256};
@@ -58,6 +59,21 @@ fn manifest_for(archive: &Path, files: &[(&str, &[u8])]) -> Manifest {
     }
 }
 
+fn eocd_offset(bytes: &[u8]) -> usize {
+    bytes
+        .windows(4)
+        .rposition(|window| window == b"PK\x05\x06")
+        .unwrap()
+}
+
+fn rewrite_archive(archive: &Path, mutate: impl FnOnce(&mut [u8], usize)) -> Manifest {
+    let mut bytes = fs::read(archive).unwrap();
+    let eocd = eocd_offset(&bytes);
+    mutate(&mut bytes, eocd);
+    fs::write(archive, &bytes).unwrap();
+    manifest_for(archive, &[("Voxtera.exe", b"game")])
+}
+
 #[test]
 fn verify_file_rejects_wrong_size_and_wrong_sha256() {
     let temp = tempfile::tempdir().unwrap();
@@ -71,7 +87,17 @@ fn verify_file_rejects_wrong_size_and_wrong_sha256() {
 
 #[test]
 fn extraction_rejects_absolute_traversal_and_drive_paths_without_escape() {
-    for hostile in ["../escape.txt", "/absolute.txt", r"C:\absolute.txt"] {
+    for hostile in [
+        "../escape.txt",
+        "/absolute.txt",
+        r"C:\absolute.txt",
+        "COM¹.txt",
+        "COM².txt",
+        "COM³.txt",
+        "LPT¹.txt",
+        "LPT².txt",
+        "LPT³.txt",
+    ] {
         let (_archive_temp, archive) =
             zip_fixture(&[("Voxtera.exe", b"game", None), (hostile, b"attack", None)]);
         let manifest = manifest_for(&archive, &[("Voxtera.exe", b"game")]);
@@ -86,6 +112,79 @@ fn extraction_rejects_absolute_traversal_and_drive_paths_without_escape() {
         assert!(!root.path().join("absolute.txt").exists());
         assert!(!staging.join("C").exists());
     }
+}
+
+#[test]
+fn zip_preflight_rejects_zip64_entry_count_before_parser_allocation() {
+    let (_archive_temp, archive) = zip_fixture(&[("Voxtera.exe", b"game", None)]);
+    let manifest = rewrite_archive(&archive, |bytes, eocd| {
+        bytes[eocd + 8..eocd + 12].copy_from_slice(&[0xff; 4]);
+    });
+    let root = tempfile::tempdir().unwrap();
+    let staging = root.path().join("game.staging-test");
+
+    let error =
+        extract_to_staging(&archive, &staging, &manifest, ArchiveLimits::default()).unwrap_err();
+
+    assert!(matches!(error, ArchiveError::Preflight(_)));
+    assert!(!staging.exists());
+}
+
+#[test]
+fn zip_preflight_rejects_large_non_zip64_entry_count_before_parser_allocation() {
+    let (_archive_temp, archive) = zip_fixture(&[("Voxtera.exe", b"game", None)]);
+    let manifest = rewrite_archive(&archive, |bytes, eocd| {
+        let count = 20_000_u16.to_le_bytes();
+        bytes[eocd + 8..eocd + 10].copy_from_slice(&count);
+        bytes[eocd + 10..eocd + 12].copy_from_slice(&count);
+    });
+    let root = tempfile::tempdir().unwrap();
+    let staging = root.path().join("game.staging-test");
+
+    let error =
+        extract_to_staging(&archive, &staging, &manifest, ArchiveLimits::default()).unwrap_err();
+
+    assert!(matches!(
+        error,
+        ArchiveError::Preflight(message) if message.contains("entry ceiling")
+    ));
+    assert!(!staging.exists());
+}
+
+#[test]
+fn zip_preflight_rejects_oversized_central_directory_before_parser_allocation() {
+    let (_archive_temp, archive) = zip_fixture(&[("Voxtera.exe", b"game", None)]);
+    let manifest = rewrite_archive(&archive, |bytes, eocd| {
+        bytes[eocd + 12..eocd + 16].copy_from_slice(&(9_u32 * 1024 * 1024).to_le_bytes());
+    });
+    let root = tempfile::tempdir().unwrap();
+    let staging = root.path().join("game.staging-test");
+
+    let error =
+        extract_to_staging(&archive, &staging, &manifest, ArchiveLimits::default()).unwrap_err();
+
+    assert!(matches!(error, ArchiveError::Preflight(_)));
+    assert!(!staging.exists());
+}
+
+#[cfg(windows)]
+#[test]
+fn verify_file_does_not_follow_a_parent_junction() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("target");
+    let junction = temp.path().join("junction");
+    fs::create_dir(&target).unwrap();
+    fs::write(target.join("managed.bin"), b"managed").unwrap();
+    let status = std::process::Command::new("cmd")
+        .args(["/c", "mklink", "/J"])
+        .arg(&junction)
+        .arg(&target)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    assert!(verify_file(&junction.join("managed.bin"), 7, &sha256(b"managed")).is_err());
 }
 
 #[test]
