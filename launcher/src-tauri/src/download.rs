@@ -86,7 +86,7 @@ impl CancellationToken {
 
     pub fn is_cancelled(&self) -> bool { *self.cancelled.borrow() }
 
-    async fn cancelled(&self) {
+    pub async fn cancelled(&self) {
         let mut receiver = self.cancelled.subscribe();
         if *receiver.borrow() {
             return;

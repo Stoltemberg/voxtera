@@ -241,6 +241,18 @@ impl InstallManager {
         }
     }
 
+    pub fn pending_promotion(&self) -> Result<Option<PromotionReceipt>, InstallError> {
+        let Some(journal) = self.read_journal()? else {
+            return Ok(None);
+        };
+        if journal.operation != TransactionOperation::Promotion
+            || journal.phase != TransactionPhase::Promoted
+        {
+            return Ok(None);
+        }
+        self.receipt(journal.transaction_id).map(Some)
+    }
+
     pub fn rollback(&self, receipt: &PromotionReceipt) -> Result<(), InstallError> {
         self.rollback_with_failure(receipt, None)
     }

@@ -582,6 +582,18 @@ fn first_install_confirmation_succeeds_without_a_rollback() {
 }
 
 #[test]
+fn pending_promotion_receipt_can_be_restored_after_launcher_restart() {
+    let (_temp, live, _manager, receipt) = promoted_fixture();
+    let restarted = InstallManager::new(live);
+
+    let restored = restarted.pending_promotion().unwrap().unwrap();
+
+    assert_eq!(restored.transaction_id, receipt.transaction_id);
+    assert_eq!(restored.rollback_dir, receipt.rollback_dir);
+    assert_eq!(restored.journal_path, receipt.journal_path);
+}
+
+#[test]
 fn first_install_confirmation_recovery_handles_every_window() {
     for point in [
         FailurePoint::CrashBeforeConfirmationRename,

@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
 
 const PROMOTION_PRESERVED_ROOTS: [&str; 3] = ["userdata", "screenshots", "settings"];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepairPlan {
     pub checked_files: usize,
     pub checked_bytes: u64,
@@ -23,7 +24,7 @@ pub struct RepairPlan {
     pub deletions: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConfirmedRepairPlan {
     pub invalid_files: Vec<String>,
     pub invalid_bytes: u64,

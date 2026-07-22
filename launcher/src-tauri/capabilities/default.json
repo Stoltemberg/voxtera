@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core window and event access for the main Voxtera launcher window.",
+  "description": "Narrow window and progress-event access; filesystem, HTTP, and process execution stay behind typed Rust commands.",
   "windows": ["main"],
   "permissions": ["core:event:default", "core:window:default"]
 }
