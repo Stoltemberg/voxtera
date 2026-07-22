@@ -1,6 +1,6 @@
 use std::fs;
 
-use launcher_core::{FailurePoint, InstallManager, PromotionRequest};
+use launcher_core::{FailurePoint, InstallError, InstallManager, PromotionRequest};
 
 fn write(path: &std::path::Path, contents: &[u8]) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -23,6 +23,26 @@ fn promoted_fixture() -> (
     let manager = InstallManager::new(live.clone());
     write(&live.join("Voxtera.exe"), b"old-game");
     write(&live.join("userdata/save.ron"), b"save-before-update");
+    let staging = manager.create_staging().unwrap();
+    write(&staging.join("Voxtera.exe"), b"new-game");
+    let receipt = manager
+        .promote(PromotionRequest {
+            staging_dir: staging,
+            failure_point: None,
+        })
+        .unwrap();
+    (temp, live, manager, receipt)
+}
+
+fn fresh_promoted_fixture() -> (
+    tempfile::TempDir,
+    std::path::PathBuf,
+    InstallManager,
+    launcher_core::PromotionReceipt,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let live = temp.path().join("game");
+    let manager = InstallManager::new(live.clone());
     let staging = manager.create_staging().unwrap();
     write(&staging.join("Voxtera.exe"), b"new-game");
     let receipt = manager
@@ -464,6 +484,124 @@ fn rollback_recovery_resumes_after_candidate_cleanup_before_journal_rewrite() {
 
     assert_eq!(fs::read(live.join("Voxtera.exe")).unwrap(), b"new-game");
     assert!(receipt.rollback_dir.exists());
+}
+
+#[test]
+fn returnable_promotion_errors_restore_live_before_returning() {
+    for point in [
+        FailurePoint::FailPromotionLiveMovedJournal,
+        FailurePoint::FailPromotionNewLiveIntentJournal,
+        FailurePoint::FailPromotionNewLiveRename,
+        FailurePoint::FailPromotionCommittedJournal,
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let live = temp.path().join("game");
+        let manager = InstallManager::new(live.clone());
+        write(&live.join("Voxtera.exe"), b"old-game");
+        write(&live.join("userdata/save.ron"), b"player-save");
+        let staging = manager.create_staging().unwrap();
+        write(&staging.join("Voxtera.exe"), b"new-game");
+
+        assert!(
+            manager
+                .promote(PromotionRequest {
+                    staging_dir: staging,
+                    failure_point: Some(point),
+                })
+                .is_err()
+        );
+
+        assert_eq!(
+            fs::read(live.join("Voxtera.exe")).unwrap(),
+            b"old-game",
+            "live was not restored at {point:?}"
+        );
+        assert_eq!(
+            fs::read(live.join("userdata/save.ron")).unwrap(),
+            b"player-save"
+        );
+        assert!(!temp.path().join("game.rollback").exists());
+        assert!(!temp.path().join("game.transaction.json").exists());
+    }
+}
+
+#[test]
+fn returnable_rollback_errors_restore_promoted_live_before_returning() {
+    for point in [
+        FailurePoint::FailRollbackLiveMovedJournal,
+        FailurePoint::FailRollbackCandidateIntentJournal,
+        FailurePoint::FailRollbackCandidateRename,
+        FailurePoint::FailRollbackAppliedJournal,
+    ] {
+        let (_temp, live, manager, receipt) = promoted_fixture();
+
+        assert!(
+            manager
+                .rollback_with_failure(&receipt, Some(point))
+                .is_err()
+        );
+
+        assert_eq!(
+            fs::read(live.join("Voxtera.exe")).unwrap(),
+            b"new-game",
+            "promoted live was not restored at {point:?}"
+        );
+        assert!(receipt.rollback_dir.exists());
+        manager.recover().unwrap();
+    }
+}
+
+#[test]
+fn combined_recovery_error_leaves_a_later_recoverable_transaction() {
+    let (_temp, live, manager, receipt) = promoted_fixture();
+
+    let error = manager
+        .rollback_with_failure(
+            &receipt,
+            Some(FailurePoint::FailRollbackCandidateRenameAndRecovery),
+        )
+        .unwrap_err();
+
+    assert!(matches!(error, InstallError::RecoveryFailed { .. }));
+    assert!(receipt.journal_path.exists());
+    manager.recover().unwrap();
+    assert_eq!(fs::read(live.join("Voxtera.exe")).unwrap(), b"new-game");
+    assert!(receipt.rollback_dir.exists());
+}
+
+#[test]
+fn first_install_confirmation_succeeds_without_a_rollback() {
+    let (_temp, live, manager, receipt) = fresh_promoted_fixture();
+    assert!(!receipt.rollback_dir.exists());
+
+    manager.confirm_first_launch(&receipt).unwrap();
+    manager.recover().unwrap();
+
+    assert_eq!(fs::read(live.join("Voxtera.exe")).unwrap(), b"new-game");
+    assert!(!receipt.journal_path.exists());
+}
+
+#[test]
+fn first_install_confirmation_recovery_handles_every_window() {
+    for point in [
+        FailurePoint::CrashBeforeConfirmationRename,
+        FailurePoint::CrashAfterConfirmationRenameBeforeJournal,
+        FailurePoint::CrashAfterConfirmationCleanup,
+    ] {
+        let (_temp, live, manager, receipt) = fresh_promoted_fixture();
+        assert!(
+            manager
+                .confirm_first_launch_with_failure(&receipt, Some(point))
+                .is_err()
+        );
+
+        manager.recover().unwrap();
+        manager.recover().unwrap();
+
+        assert_eq!(fs::read(live.join("Voxtera.exe")).unwrap(), b"new-game");
+        assert!(!receipt.rollback_dir.exists());
+        assert!(!receipt.journal_path.exists());
+    }
 }
 
 #[cfg(windows)]

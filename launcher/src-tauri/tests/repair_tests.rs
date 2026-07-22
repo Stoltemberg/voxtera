@@ -162,3 +162,35 @@ fn repair_planner_marks_managed_file_under_junction_invalid() {
 
     assert_eq!(plan.invalid_files, vec!["Voxtera.exe"]);
 }
+
+#[cfg(windows)]
+#[test]
+fn repair_staging_junction_is_rejected_before_copying_unmanaged_outside() {
+    let temp = tempfile::tempdir().unwrap();
+    let live = temp.path().join("game");
+    let outside = temp.path().join("outside");
+    let manager = InstallManager::new(live.clone());
+    let manifest = manifest(&[("Voxtera.exe", b"new-game")]);
+    write(&live.join("Voxtera.exe"), b"old-game");
+    write(&live.join("mods/player.mod"), b"must-not-escape");
+    let staging = manager.create_staging().unwrap();
+    write(&staging.join("Voxtera.exe"), b"new-game");
+    fs::create_dir(&outside).unwrap();
+    write(&outside.join("sentinel.txt"), b"unchanged");
+    let status = std::process::Command::new("cmd")
+        .args(["/c", "mklink", "/J"])
+        .arg(staging.join("mods"))
+        .arg(&outside)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let confirmed = plan_repair(&live, &manifest, 1).unwrap().confirm();
+
+    assert!(prepare_repair_staging(&live, &staging, &manifest, &confirmed).is_err());
+    assert_eq!(
+        fs::read(outside.join("sentinel.txt")).unwrap(),
+        b"unchanged"
+    );
+    assert!(!outside.join("player.mod").exists());
+}

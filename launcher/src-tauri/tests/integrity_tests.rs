@@ -66,6 +66,13 @@ fn eocd_offset(bytes: &[u8]) -> usize {
         .unwrap()
 }
 
+fn central_header_offset(bytes: &[u8]) -> usize {
+    bytes
+        .windows(4)
+        .position(|window| window == b"PK\x01\x02")
+        .unwrap()
+}
+
 fn rewrite_archive(archive: &Path, mutate: impl FnOnce(&mut [u8], usize)) -> Manifest {
     let mut bytes = fs::read(archive).unwrap();
     let eocd = eocd_offset(&bytes);
@@ -165,6 +172,40 @@ fn zip_preflight_rejects_oversized_central_directory_before_parser_allocation() 
 
     assert!(matches!(error, ArchiveError::Preflight(_)));
     assert!(!staging.exists());
+}
+
+#[test]
+fn extraction_rejects_unix_mode_with_unknown_zero_type_bits() {
+    let (_archive_temp, archive) = zip_fixture(&[("Voxtera.exe", b"game", None)]);
+    let manifest = rewrite_archive(&archive, |bytes, _| {
+        let central = central_header_offset(bytes);
+        bytes[central + 5] = 3;
+        bytes[central + 38..central + 42].copy_from_slice(&((0o777_u32) << 16).to_le_bytes());
+    });
+    let root = tempfile::tempdir().unwrap();
+    let staging = root.path().join("game.staging-test");
+
+    let error =
+        extract_to_staging(&archive, &staging, &manifest, ArchiveLimits::default()).unwrap_err();
+
+    assert!(matches!(error, ArchiveError::Unsafe(_)));
+    assert!(!staging.exists());
+}
+
+#[test]
+fn extraction_accepts_windows_entry_without_unix_mode() {
+    let (_archive_temp, archive) = zip_fixture(&[("Voxtera.exe", b"game", None)]);
+    let manifest = rewrite_archive(&archive, |bytes, _| {
+        let central = central_header_offset(bytes);
+        bytes[central + 5] = 0;
+        bytes[central + 38..central + 42].copy_from_slice(&0_u32.to_le_bytes());
+    });
+    let root = tempfile::tempdir().unwrap();
+    let staging = root.path().join("game.staging-test");
+
+    extract_to_staging(&archive, &staging, &manifest, ArchiveLimits::default()).unwrap();
+
+    assert_eq!(fs::read(staging.join("Voxtera.exe")).unwrap(), b"game");
 }
 
 #[cfg(windows)]

@@ -6,7 +6,11 @@ use std::{
 
 use walkdir::WalkDir;
 
-use crate::{Manifest, integrity::is_link_or_reparse, verify_file};
+use crate::{
+    Manifest,
+    integrity::{is_link_or_reparse, path_has_link_or_reparse_component},
+    verify_file,
+};
 
 const PROMOTION_PRESERVED_ROOTS: [&str; 3] = ["userdata", "screenshots", "settings"];
 
@@ -60,8 +64,8 @@ pub fn prepare_repair_staging(
         .validate()
         .map_err(|_| RepairError::InvalidManifest)?;
     validate_confirmation(manifest, confirmed)?;
-    validate_real_directory(installation_root)?;
-    validate_real_directory(staging_root)?;
+    validate_real_tree(installation_root)?;
+    validate_real_tree(staging_root)?;
     for file in &manifest.files {
         verify_file(&staging_root.join(&file.path), file.size, &file.sha256)
             .map_err(|_| RepairError::Unsafe("staging managed file is invalid".to_owned()))?;
@@ -107,19 +111,29 @@ pub fn prepare_repair_staging(
         }
         let target = staging_root.join(relative);
         if entry.file_type().is_dir() {
+            ensure_safe_target(staging_root, &target)?;
             if !target.exists() {
                 fs::create_dir(&target).map_err(RepairError::Io)?;
             }
+            ensure_safe_directory(staging_root, &target)?;
         } else if entry.file_type().is_file() {
-            if target.exists() {
-                return Err(RepairError::Unsafe(
-                    "unmanaged repair copy would overwrite staging".to_owned(),
-                ));
-            }
             if let Some(parent) = target.parent() {
+                ensure_safe_target(staging_root, parent)?;
                 fs::create_dir_all(parent).map_err(RepairError::Io)?;
+                ensure_safe_directory(staging_root, parent)?;
             }
+            match fs::symlink_metadata(&target) {
+                Ok(_) => {
+                    return Err(RepairError::Unsafe(
+                        "unmanaged repair copy would overwrite staging".to_owned(),
+                    ));
+                },
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+                Err(error) => return Err(RepairError::Io(error)),
+            }
+            ensure_safe_target(staging_root, &target)?;
             fs::copy(entry.path(), target).map_err(RepairError::Io)?;
+            ensure_safe_file(staging_root, &staging_root.join(relative))?;
             copied += 1;
         } else {
             return Err(RepairError::Unsafe(
@@ -167,11 +181,59 @@ fn validate_confirmation(
     Ok(())
 }
 
-fn validate_real_directory(path: &Path) -> Result<(), RepairError> {
+fn validate_real_tree(path: &Path) -> Result<(), RepairError> {
     let metadata = fs::symlink_metadata(path).map_err(RepairError::Io)?;
     if !metadata.is_dir() || is_link_or_reparse(path).map_err(RepairError::Io)? {
         return Err(RepairError::Unsafe(
             "repair root is a link or reparse point".to_owned(),
+        ));
+    }
+    for entry in WalkDir::new(path).follow_links(false) {
+        let entry = entry.map_err(|error| {
+            RepairError::Unsafe(format!("repair tree traversal failed: {error}"))
+        })?;
+        if entry.file_type().is_symlink()
+            || is_link_or_reparse(entry.path()).map_err(RepairError::Io)?
+        {
+            return Err(RepairError::Unsafe(
+                "repair tree contains a link or reparse point".to_owned(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn ensure_safe_target(root: &Path, target: &Path) -> Result<(), RepairError> {
+    if !target.starts_with(root) {
+        return Err(RepairError::Unsafe(
+            "repair target escaped staging".to_owned(),
+        ));
+    }
+    if path_has_link_or_reparse_component(target).map_err(RepairError::Io)? {
+        return Err(RepairError::Unsafe(
+            "repair target traverses a link or reparse point".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_safe_directory(root: &Path, path: &Path) -> Result<(), RepairError> {
+    ensure_safe_target(root, path)?;
+    let metadata = fs::symlink_metadata(path).map_err(RepairError::Io)?;
+    if !metadata.is_dir() || is_link_or_reparse(path).map_err(RepairError::Io)? {
+        return Err(RepairError::Unsafe(
+            "repair target directory is unsafe".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_safe_file(root: &Path, path: &Path) -> Result<(), RepairError> {
+    ensure_safe_target(root, path)?;
+    let metadata = fs::symlink_metadata(path).map_err(RepairError::Io)?;
+    if !metadata.is_file() || is_link_or_reparse(path).map_err(RepairError::Io)? {
+        return Err(RepairError::Unsafe(
+            "repair target file is unsafe".to_owned(),
         ));
     }
     Ok(())

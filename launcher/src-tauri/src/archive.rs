@@ -272,7 +272,7 @@ fn is_windows_device_name(component: &str) -> bool {
 fn reject_special_entry(entry: &zip::read::ZipFile<'_, File>) -> Result<(), ArchiveError> {
     if let Some(mode) = entry.unix_mode() {
         let kind = mode & 0o170000;
-        if kind != 0 && kind != 0o040000 && kind != 0o100000 {
+        if kind != 0o040000 && kind != 0o100000 {
             return Err(ArchiveError::Unsafe(
                 "links and special entries are forbidden".to_owned(),
             ));

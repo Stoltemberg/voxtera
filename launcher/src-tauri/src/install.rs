@@ -30,6 +30,15 @@ pub enum FailurePoint {
     CrashBeforeConfirmationRename,
     CrashAfterConfirmationRenameBeforeJournal,
     CrashAfterConfirmationCleanup,
+    FailPromotionLiveMovedJournal,
+    FailPromotionNewLiveIntentJournal,
+    FailPromotionNewLiveRename,
+    FailPromotionCommittedJournal,
+    FailRollbackLiveMovedJournal,
+    FailRollbackCandidateIntentJournal,
+    FailRollbackCandidateRename,
+    FailRollbackAppliedJournal,
+    FailRollbackCandidateRenameAndRecovery,
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +69,11 @@ pub enum InstallError {
     InvalidJournal,
     #[error("injected transaction failure")]
     InjectedFailure,
+    #[error("operation failed and immediate recovery also failed")]
+    RecoveryFailed {
+        operation: Box<InstallError>,
+        recovery: Box<InstallError>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -154,54 +168,63 @@ impl InstallManager {
         }
 
         if had_previous {
-            fs::rename(&self.installation_dir, &rollback).map_err(|error| {
-                if error.kind() == std::io::ErrorKind::PermissionDenied {
+            if let Err(error) = fs::rename(&self.installation_dir, &rollback) {
+                let error = if error.kind() == std::io::ErrorKind::PermissionDenied {
                     InstallError::GameRunning
                 } else {
                     InstallError::Io(error)
-                }
-            })?;
+                };
+                return self.return_after_recovery(error, false);
+            }
             if request.failure_point == Some(FailurePoint::CrashAfterLiveRenameBeforeJournal) {
                 return Err(InstallError::InjectedFailure);
             }
             journal.phase = TransactionPhase::PromotionLiveMoved;
+            if request.failure_point == Some(FailurePoint::FailPromotionLiveMovedJournal) {
+                return self.return_after_recovery(InstallError::InjectedFailure, false);
+            }
             if let Err(error) = self.write_journal(&journal) {
-                let _ = self.recover();
-                return Err(error);
+                return self.return_after_recovery(error, false);
             }
             if request.failure_point == Some(FailurePoint::CrashAfterLiveMoved) {
                 return Err(InstallError::InjectedFailure);
             }
             if request.failure_point == Some(FailurePoint::AfterLiveMoved) {
-                self.recover()?;
-                return Err(InstallError::InjectedFailure);
+                return self.return_after_recovery(InstallError::InjectedFailure, false);
             }
             if let Err(error) = copy_preserved(&rollback, &request.staging_dir) {
-                self.recover()?;
-                return Err(error);
+                return self.return_after_recovery(error, false);
             }
             journal.phase = TransactionPhase::PromotionNewLiveMoveIntent;
+            if request.failure_point == Some(FailurePoint::FailPromotionNewLiveIntentJournal) {
+                return self.return_after_recovery(InstallError::InjectedFailure, false);
+            }
             if let Err(error) = self.write_journal(&journal) {
-                let _ = self.recover();
-                return Err(error);
+                return self.return_after_recovery(error, false);
             }
         }
 
         if request.failure_point == Some(FailurePoint::CrashBeforeNewLiveRename) {
             return Err(InstallError::InjectedFailure);
         }
-        fs::rename(&request.staging_dir, &self.installation_dir).map_err(InstallError::Io)?;
+        if request.failure_point == Some(FailurePoint::FailPromotionNewLiveRename) {
+            return self.return_after_recovery(InstallError::InjectedFailure, false);
+        }
+        if let Err(error) = fs::rename(&request.staging_dir, &self.installation_dir) {
+            return self.return_after_recovery(InstallError::Io(error), false);
+        }
         if request.failure_point == Some(FailurePoint::CrashAfterNewLiveRenamed) {
             return Err(InstallError::InjectedFailure);
         }
         if request.failure_point == Some(FailurePoint::AfterNewLiveRenamed) {
-            self.recover()?;
-            return Err(InstallError::InjectedFailure);
+            return self.return_after_recovery(InstallError::InjectedFailure, false);
         }
         journal.phase = TransactionPhase::Promoted;
+        if request.failure_point == Some(FailurePoint::FailPromotionCommittedJournal) {
+            return self.return_after_recovery(InstallError::InjectedFailure, false);
+        }
         if let Err(error) = self.write_journal(&journal) {
-            let _ = self.recover();
-            return Err(error);
+            return self.return_after_recovery(error, false);
         }
 
         self.receipt(journal.transaction_id)
@@ -256,30 +279,66 @@ impl InstallManager {
         }
 
         journal.phase = TransactionPhase::RollbackLiveMoveIntent;
-        self.write_journal(&journal)?;
+        if let Err(error) = self.write_journal(&journal) {
+            return self.return_after_recovery(error, false);
+        }
         if failure_point == Some(FailurePoint::CrashBeforeRollbackLiveRename) {
             return Err(InstallError::InjectedFailure);
         }
-        fs::rename(&self.installation_dir, &displaced).map_err(InstallError::Io)?;
+        if let Err(error) = fs::rename(&self.installation_dir, &displaced) {
+            return self.return_after_recovery(InstallError::Io(error), false);
+        }
         if failure_point == Some(FailurePoint::CrashAfterRollbackLiveRenameBeforeJournal) {
             return Err(InstallError::InjectedFailure);
         }
 
         journal.phase = TransactionPhase::RollbackLiveMoved;
-        self.write_journal(&journal)?;
+        if failure_point == Some(FailurePoint::FailRollbackLiveMovedJournal) {
+            return self.return_after_recovery(InstallError::InjectedFailure, false);
+        }
+        if let Err(error) = self.write_journal(&journal) {
+            return self.return_after_recovery(error, false);
+        }
         journal.phase = TransactionPhase::RollbackCandidateMoveIntent;
-        self.write_journal(&journal)?;
+        if failure_point == Some(FailurePoint::FailRollbackCandidateIntentJournal) {
+            return self.return_after_recovery(InstallError::InjectedFailure, false);
+        }
+        if let Err(error) = self.write_journal(&journal) {
+            return self.return_after_recovery(error, false);
+        }
         if failure_point == Some(FailurePoint::CrashBeforeRollbackCandidateRename) {
             return Err(InstallError::InjectedFailure);
         }
-        fs::rename(&candidate, &self.installation_dir).map_err(InstallError::Io)?;
+        if matches!(
+            failure_point,
+            Some(
+                FailurePoint::FailRollbackCandidateRename
+                    | FailurePoint::FailRollbackCandidateRenameAndRecovery
+            )
+        ) {
+            return self.return_after_recovery(
+                InstallError::InjectedFailure,
+                failure_point == Some(FailurePoint::FailRollbackCandidateRenameAndRecovery),
+            );
+        }
+        if let Err(error) = fs::rename(&candidate, &self.installation_dir) {
+            return self.return_after_recovery(InstallError::Io(error), false);
+        }
         if failure_point == Some(FailurePoint::CrashAfterRollbackCandidateRenameBeforeJournal) {
             return Err(InstallError::InjectedFailure);
         }
 
         journal.phase = TransactionPhase::RollbackApplied;
-        self.write_journal(&journal)?;
-        self.finish_applied_rollback(&journal)
+        if failure_point == Some(FailurePoint::FailRollbackAppliedJournal) {
+            return self.return_after_recovery(InstallError::InjectedFailure, false);
+        }
+        if let Err(error) = self.write_journal(&journal) {
+            return self.return_after_recovery(error, false);
+        }
+        if let Err(error) = self.finish_applied_rollback(&journal) {
+            return self.return_after_recovery(error, false);
+        }
+        Ok(())
     }
 
     pub fn confirm_first_launch(&self, receipt: &PromotionReceipt) -> Result<(), InstallError> {
@@ -291,7 +350,7 @@ impl InstallManager {
         receipt: &PromotionReceipt,
         failure_point: Option<FailurePoint>,
     ) -> Result<(), InstallError> {
-        self.validate_receipt(receipt)?;
+        let promotion = self.validate_receipt(receipt)?;
         let cleanup = self.owned_sibling("cleanup", Uuid::new_v4())?;
         let mut journal = TransactionJournal {
             transaction_id: receipt.transaction_id,
@@ -299,19 +358,23 @@ impl InstallManager {
             phase: TransactionPhase::ConfirmationMoveIntent,
             staging_dir: cleanup.clone(),
             auxiliary_dir: None,
-            had_previous_installation: true,
+            had_previous_installation: promotion.had_previous_installation,
         };
         self.write_journal(&journal)?;
         if failure_point == Some(FailurePoint::CrashBeforeConfirmationRename) {
             return Err(InstallError::InjectedFailure);
         }
-        fs::rename(&receipt.rollback_dir, &cleanup).map_err(InstallError::Io)?;
+        if promotion.had_previous_installation {
+            fs::rename(&receipt.rollback_dir, &cleanup).map_err(InstallError::Io)?;
+        }
         if failure_point == Some(FailurePoint::CrashAfterConfirmationRenameBeforeJournal) {
             return Err(InstallError::InjectedFailure);
         }
         journal.phase = TransactionPhase::ConfirmationMoved;
         self.write_journal(&journal)?;
-        remove_owned_tree(&cleanup)?;
+        if promotion.had_previous_installation {
+            remove_owned_tree(&cleanup)?;
+        }
         if failure_point == Some(FailurePoint::CrashAfterConfirmationCleanup) {
             return Err(InstallError::InjectedFailure);
         }
@@ -468,6 +531,12 @@ impl InstallManager {
             return Err(InstallError::InvalidJournal);
         }
         let rollback = self.rollback_dir()?;
+        if !journal.had_previous_installation {
+            if rollback.exists() || journal.staging_dir.exists() {
+                return Err(InstallError::InvalidJournal);
+            }
+            return remove_file_if_present(&self.journal_path()?);
+        }
         match (rollback.exists(), journal.staging_dir.exists()) {
             (true, false) => {
                 fs::rename(&rollback, &journal.staging_dir).map_err(InstallError::Io)?;
@@ -481,7 +550,10 @@ impl InstallManager {
         remove_file_if_present(&self.journal_path()?)
     }
 
-    fn validate_receipt(&self, receipt: &PromotionReceipt) -> Result<(), InstallError> {
+    fn validate_receipt(
+        &self,
+        receipt: &PromotionReceipt,
+    ) -> Result<TransactionJournal, InstallError> {
         if receipt.installation_dir != self.installation_dir
             || receipt.rollback_dir != self.rollback_dir()?
             || receipt.journal_path != self.journal_path()?
@@ -497,7 +569,26 @@ impl InstallManager {
         {
             return Err(InstallError::InvalidJournal);
         }
-        Ok(())
+        Ok(journal)
+    }
+
+    fn return_after_recovery<T>(
+        &self,
+        operation: InstallError,
+        inject_recovery_failure: bool,
+    ) -> Result<T, InstallError> {
+        let recovery = if inject_recovery_failure {
+            Err(InstallError::InjectedFailure)
+        } else {
+            self.recover()
+        };
+        match recovery {
+            Ok(()) => Err(operation),
+            Err(recovery) => Err(InstallError::RecoveryFailed {
+                operation: Box::new(operation),
+                recovery: Box::new(recovery),
+            }),
+        }
     }
 
     fn write_promoted_journal(&self, transaction_id: Uuid) -> Result<(), InstallError> {
