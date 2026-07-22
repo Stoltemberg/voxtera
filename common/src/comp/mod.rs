@@ -93,7 +93,7 @@ pub use self::{
     location::{MapMarker, MapMarkerChange, MapMarkerUpdate, Waypoint, WaypointArea},
     loot_owner::LootOwner,
     melee::{Melee, MeleeConstructor, MeleeConstructorKind},
-    misc::Object,
+    misc::{Object, SpawnProtection},
     ori::Ori,
     pet::Pet,
     phys::{

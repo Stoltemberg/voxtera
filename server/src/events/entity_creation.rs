@@ -58,6 +58,16 @@ pub fn handle_initialize_character(server: &mut Server, ev: InitializeCharacterE
                 ServerGeneral::SetViewDistance(clamped_vds.terrain),
             );
         }
+
+        // Voxtera: grant 30s spawn protection so new players don't get
+        // killed immediately by nearby mobs or other players.
+        {
+            let mut spawn_protection = server.state.ecs_mut().write_storage::<comp::SpawnProtection>();
+            let _ = spawn_protection.insert(
+                ev.entity,
+                comp::SpawnProtection::new(std::time::Duration::from_secs(30)),
+            );
+        }
     } else {
         // A character delete or update was somehow initiated after the login commenced,
         // so kick the client out of "ingame" without saving any data and abort

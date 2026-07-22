@@ -9,6 +9,7 @@ pub fn init(world: &mut World) {
     world.register::<comp::Interpolated>();
     world.register::<comp::Footsteps>();
     world.register::<common::comp::HitFlash>();
+    world.register::<common::comp::SpawnProtection>();
 
     {
         let pool = world.read_resource::<SlowJobPool>();

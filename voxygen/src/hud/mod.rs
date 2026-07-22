@@ -321,6 +321,7 @@ widget_ids! {
         buffs,
         esc_menu,
         social_window,
+        online_count,
         quest_window,
         tutorial_window,
         crafting_window,
@@ -3932,12 +3933,24 @@ impl Hud {
                     friends_panel::Event::FriendAction(action) => {
                         events.push(Event::FriendAction(action));
                     },
+                    friends_panel::Event::InviteMember(uid) => {
+                        events.push(Event::InviteMember(uid));
+                    },
                     friends_panel::Event::MoveSocial(pos) => {
                         global_state.settings.hud_position.social = pos;
                     },
                 }
             }
         }
+
+        // Online player count — top-right corner
+        let online_count = client.player_list().len();
+        Text::new(&format!("{} online", online_count))
+            .top_right_with_margins_on(ui_widgets.window, 5.0, 5.0)
+            .font_id(self.fonts.cyri.conrod_id)
+            .font_size(self.fonts.cyri.scale(14))
+            .color(TEXT_COLOR)
+            .set(self.ids.online_count, ui_widgets);
 
         // Diary
         if self.show.diary {

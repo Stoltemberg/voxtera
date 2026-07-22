@@ -134,6 +134,7 @@ pub enum Event {
     Close,
     Focus(widget::Id),
     FriendAction(FriendAction),
+    InviteMember(common::uid::Uid),
     MoveSocial(Vec2<f64>),
 }
 
@@ -344,7 +345,7 @@ impl Widget for FriendsPanel<'_> {
                     && !related_aliases.contains(&info.player_alias.to_lowercase())
                     && (search.is_empty() || info.player_alias.to_lowercase().contains(&search))
             })
-            .map(|(_, info)| info.player_alias.as_str())
+            .map(|(uid, info)| (*uid, info.player_alias.as_str()))
             .collect::<Vec<_>>();
 
         let row_count = match state.tab {
@@ -369,7 +370,11 @@ impl Widget for FriendsPanel<'_> {
             let alias = match state.tab {
                 SocialTab::Friends => friend_aliases[i],
                 SocialTab::Requests => request_aliases[i],
-                SocialTab::Players => players[i],
+                SocialTab::Players => players[i].1,
+            };
+            let player_uid = match state.tab {
+                SocialTab::Players => Some(players[i].0),
+                _ => None,
             };
             let entry = friends.iter().find(|friend| friend.alias == alias);
             let row = Button::image(self.imgs.nothing)
@@ -497,6 +502,15 @@ impl Widget for FriendsPanel<'_> {
                         .was_clicked()
                     {
                         events.push(Event::FriendAction(FriendAction::Add(alias.to_string())));
+                    }
+                    if let Some(uid) = player_uid {
+                        if action_button!(&self.i18n.get_msg("hud-friends-invite"))
+                            .right_from(state.ids.primary_actions[i], 4.0)
+                            .set(state.ids.secondary_actions[i], ui)
+                            .was_clicked()
+                        {
+                            events.push(Event::InviteMember(uid));
+                        }
                     }
                 },
                 _ => {},

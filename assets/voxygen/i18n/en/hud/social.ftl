@@ -31,6 +31,7 @@ hud-friends-accept = Accept
 hud-friends-reject = Reject
 hud-friends-cancel = Cancel
 hud-friends-add = Add
+hud-friends-invite = Invite
 hud-friends-empty = Your friends list is empty
 hud-friends-no-requests = No pending requests
 hud-friends-no-players = No players found

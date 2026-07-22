@@ -72,3 +72,20 @@ impl From<PortalData> for Object {
         }
     }
 }
+
+/// Spawn protection — temporary invulnerability for newly spawned players.
+/// Removed when the timer expires or the player attacks.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpawnProtection {
+    pub remaining: Duration,
+}
+
+impl SpawnProtection {
+    pub fn new(duration: Duration) -> Self { Self { remaining: duration } }
+
+    pub fn is_active(&self) -> bool { !self.remaining.is_zero() }
+}
+
+impl Component for SpawnProtection {
+    type Storage = FlaggedStorage<Self, VecStorage<Self>>;
+}

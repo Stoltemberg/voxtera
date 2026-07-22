@@ -28,7 +28,7 @@ use common::{
     comp::{
         self, Alignment, Auras, BASE_ABILITY_LIMIT, Body, BuffCategory, BuffEffect, CharacterState,
         Energy, Group, Hardcore, Health, HealthChange, Inventory, Object, PickupItem, Player,
-        Poise, PoiseChange, Pos, Presence, PresenceKind, ProjectileConstructor, SkillSet, Stats,
+        Poise, PoiseChange, Pos, Presence, PresenceKind, ProjectileConstructor, SkillSet, SpawnProtection, Stats,
         ability::Dodgeable,
         aura::{self, EnteredAuras},
         buff,
@@ -222,6 +222,7 @@ pub struct HealthChangeEventData<'a> {
     agents: WriteStorage<'a, Agent>,
     healths: WriteStorage<'a, Health>,
     heads: WriteStorage<'a, Heads>,
+    spawn_protection: ReadStorage<'a, SpawnProtection>,
 }
 
 impl ServerEvent for HealthChangeEvent {
@@ -245,6 +246,13 @@ impl ServerEvent for HealthChangeEvent {
                 if ev.change.amount < 0.0 &&
                     // None indicates invincibility.
                     combat::compute_protection(inventory, &data.msm).is_none()
+                {
+                    continue;
+                }
+
+                // Voxtera: spawn protection — ignore damage while active.
+                if ev.change.amount < 0.0
+                    && data.spawn_protection.get(ev.entity).is_some_and(|sp| sp.is_active())
                 {
                     continue;
                 }

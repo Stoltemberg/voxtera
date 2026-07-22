@@ -382,7 +382,9 @@ impl Server {
             .ecs_mut()
             .insert(EventBus::<chunk_serialize::ChunkSendEntry>::default());
         state.ecs_mut().insert(Locations::default());
-        state.ecs_mut().insert(friends::FriendsResource::default());
+        let friends_path = data_dir.join("friends.ron");
+        let friends_resource = friends::FriendsResource::load_from_file(&friends_path);
+        state.ecs_mut().insert(friends_resource);
         state.ecs_mut().insert(LoginProvider::new(
             settings.auth_server_address.clone(),
             Arc::clone(&runtime),
@@ -1254,6 +1256,34 @@ impl Server {
 
         // 9) Finish the tick, pass control back to the frontend.
 
+        // Save friends data periodically (every ~60 ticks ≈ 1 second).
+        let tick_count = self.state.ecs().read_resource::<Tick>().0;
+        if tick_count % 60 == 0 {
+            let friends_path = self.data_dir().path.join("friends.ron");
+            self.state
+                .ecs()
+                .read_resource::<friends::FriendsResource>()
+                .save_to_file(&friends_path);
+        }
+
+        // Voxtera: tick spawn protection timers down.
+        {
+            let mut spawn_protection = self.state.ecs().write_storage::<comp::SpawnProtection>();
+            for (_, mut sp) in (&self.state.ecs().entities(), &mut spawn_protection).join() {
+                if let Some(new_remaining) = sp.remaining.checked_sub(dt) {
+                    sp.remaining = new_remaining;
+                } else {
+                    sp.remaining = std::time::Duration::ZERO;
+                }
+            }
+            let entities: Vec<specs::Entity> = self.state.ecs().entities().join().collect();
+            for entity in entities {
+                if spawn_protection.get(entity).is_some_and(|sp| sp.remaining.is_zero()) {
+                    let _ = spawn_protection.remove(entity);
+                }
+            }
+        }
+
         Ok(frontend_events)
     }
 
@@ -1404,6 +1434,10 @@ impl Server {
                 self.handle_removefriend(entity, args);
                 return;
             },
+            "announce" => {
+                self.handle_announce(entity, args);
+                return;
+            },
             _ => {},
         }
 
@@ -1507,6 +1541,47 @@ impl Server {
             friends.ui_snapshot(&player_uuid)
         };
         self.notify_client(entity, ServerGeneral::FriendsUpdate(snapshot));
+    }
+
+    /// Handle `/announce <message>` — broadcast a message to all online
+    /// players.  Requires admin privileges.
+    fn handle_announce(&mut self, entity: EcsEntity, args: Vec<String>) {
+        let message = args.join(" ");
+        if message.is_empty() {
+            self.notify_client(
+                entity,
+                ServerGeneral::server_msg(
+                    ChatType::CommandError,
+                    Content::Plain("Usage: /announce <message>".to_string()),
+                ),
+            );
+            return;
+        }
+
+        // Check admin.
+        let is_admin = self
+            .state
+            .ecs()
+            .read_storage::<comp::Admin>()
+            .get(entity)
+            .is_some();
+        if !is_admin {
+            self.notify_client(
+                entity,
+                ServerGeneral::server_msg(
+                    ChatType::CommandError,
+                    Content::Plain("You do not have permission to use /announce.".to_string()),
+                ),
+            );
+            return;
+        }
+
+        // Broadcast to all connected clients.
+        let msg = ServerGeneral::server_msg(
+            ChatType::Meta,
+            Content::Plain(format!("[Anúncio] {}", message)),
+        );
+        self.notify_players(msg);
     }
 
     /// Handle `/addfriend <playername>` — send a friend request to another

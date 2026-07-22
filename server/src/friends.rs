@@ -9,8 +9,10 @@ use common::{
 };
 use common_net::msg::ServerGeneral;
 use hashbrown::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
 use specs::{Entity as EcsEntity, WorldExt};
-use tracing::{debug, info};
+use std::path::Path;
+use tracing::{debug, info, warn};
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -434,6 +436,85 @@ impl FriendsResource {
                 alias: alias_a,
                 status: FriendStatus::Accepted,
             });
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Persistence
+// ---------------------------------------------------------------------------
+
+/// Serializable subset of FriendsResource that gets saved to disk.
+/// Runtime-only fields (online_players, uuid_to_entity, pending_notifications)
+/// are rebuilt on load.
+#[derive(Serialize, Deserialize, Default)]
+struct SerializableFriends {
+    friend_lists: HashMap<Uuid, Vec<FriendEntry>>,
+    aliases: HashMap<Uuid, String>,
+}
+
+impl FriendsResource {
+    /// Save friend lists and aliases to a .ron file atomically.
+    pub fn save_to_file(&self, path: &Path) {
+        let data = SerializableFriends {
+            friend_lists: self.friend_lists.clone(),
+            aliases: self.aliases.clone(),
+        };
+        let ron_str = match ron::ser::to_string_pretty(
+            &data,
+            ron::ser::PrettyConfig::default(),
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!(?e, "Failed to serialize friends data");
+                return;
+            },
+        };
+        let atomic_file = atomicwrites::AtomicFile::new(
+            path,
+            atomicwrites::OverwriteBehavior::AllowOverwrite,
+        );
+        if let Err(e) = atomic_file.write(|file| {
+            use std::io::Write;
+            file.write_all(ron_str.as_bytes())
+        }) {
+            warn!(?e, "Failed to save friends.ron");
+        } else {
+            debug!("Saved friends.ron ({} players)", data.friend_lists.len());
+        }
+    }
+
+    /// Load friend lists and aliases from a .ron file.
+    /// Returns a FriendsResource with runtime fields cleared.
+    pub fn load_from_file(path: &Path) -> Self {
+        if !path.exists() {
+            return Self::default();
+        }
+        let contents = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!(?e, "Failed to read friends.ron");
+                return Self::default();
+            },
+        };
+        match ron::from_str::<SerializableFriends>(&contents) {
+            Ok(data) => {
+                info!(
+                    players = data.friend_lists.len(),
+                    "Loaded friends.ron"
+                );
+                Self {
+                    friend_lists: data.friend_lists,
+                    aliases: data.aliases,
+                    online_players: HashSet::new(),
+                    uuid_to_entity: HashMap::new(),
+                    pending_notifications: Vec::new(),
+                }
+            },
+            Err(e) => {
+                warn!(?e, "Failed to parse friends.ron, starting fresh");
+                Self::default()
+            },
         }
     }
 }
