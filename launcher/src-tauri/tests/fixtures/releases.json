@@ -1,0 +1,32 @@
+[
+  {
+    "tag_name": "v9.0.0",
+    "draft": true,
+    "prerelease": false,
+    "assets": [
+      { "name": "VoxteraLauncher-setup.exe", "size": 900, "browser_download_url": "https://example.invalid/v9/VoxteraLauncher-setup.exe" },
+      { "name": "Voxtera-windows-x64.zip", "size": 901, "browser_download_url": "https://example.invalid/v9/Voxtera-windows-x64.zip" },
+      { "name": "voxtera-manifest.json", "size": 902, "browser_download_url": "https://example.invalid/v9/voxtera-manifest.json" }
+    ]
+  },
+  {
+    "tag_name": "v0.2.2",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      { "name": "VoxteraLauncher-setup.exe", "size": 220, "browser_download_url": "https://example.invalid/v0.2.2/VoxteraLauncher-setup.exe" },
+      { "name": "Voxtera-windows-x64.zip", "size": 221, "browser_download_url": "https://example.invalid/v0.2.2/Voxtera-windows-x64.zip" },
+      { "name": "voxtera-manifest.json", "size": 222, "browser_download_url": "https://example.invalid/v0.2.2/voxtera-manifest.json" }
+    ]
+  },
+  {
+    "tag_name": "v0.2.3",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      { "name": "VoxteraLauncher-setup.exe", "size": 230, "browser_download_url": "https://example.invalid/v0.2.3/VoxteraLauncher-setup.exe" },
+      { "name": "Voxtera-windows-x64.zip", "size": 231, "browser_download_url": "https://example.invalid/v0.2.3/Voxtera-windows-x64.zip" },
+      { "name": "voxtera-manifest.json", "size": 232, "browser_download_url": "https://example.invalid/v0.2.3/voxtera-manifest.json" }
+    ]
+  }
+]

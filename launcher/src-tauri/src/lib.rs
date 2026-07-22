@@ -1,11 +1,20 @@
 mod config;
 mod domain;
 mod error;
+mod manifest;
 mod paths;
+mod release;
 
 pub use domain::{Channel, InstalledBuild, LauncherConfig};
 pub use error::{LauncherError, LauncherErrorCode};
+pub use manifest::{
+    ArchiveMetadata, ManagedFile, Manifest, ManifestError, build_manifest, manifest_json,
+};
 pub use paths::LauncherPaths;
+pub use release::{
+    GitHubAsset, GitHubRelease, PreviewRelease, ReleaseAsset, ReleaseClient, ReleaseError,
+    select_release,
+};
 
 #[cfg(test)] mod target_contract;
 

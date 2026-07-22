@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "version": "0.2.3",
+  "channel": "preview",
+  "archive": {
+    "name": "Voxtera-windows-x64.zip",
+    "size": 27,
+    "sha256": "a584daf42486d7c87e4513fdcca9c58d2e2ec897774bafdbd43e6c0696c29979"
+  },
+  "executable": "Voxtera.exe",
+  "files": [
+    {
+      "path": "Voxtera.exe",
+      "size": 11,
+      "sha256": "5ea4d05316b312284b76cd314218c1ccd37890a45f2cc60a8cbfb7ad71f07cd6"
+    },
+    {
+      "path": "assets/a.vox",
+      "size": 12,
+      "sha256": "8a69bba1277342a019178f18577a32f6ebed60b0e155028d96248a6310a8d9e6"
+    },
+    {
+      "path": "assets/z.vox",
+      "size": 12,
+      "sha256": "f7a72e83112c2d7b45e12ca25c47cbe71a4c2fafd3e441961235c900fdd8e509"
+    }
+  ],
+  "preserved_paths": [
+    "userdata/",
+    "screenshots/"
+  ],
+  "minimum_launcher_version": "0.3.0-preview.1"
+}
