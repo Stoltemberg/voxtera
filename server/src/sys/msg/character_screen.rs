@@ -5,6 +5,7 @@ use world::{IndexOwned, World};
 
 use crate::{
     EditableSettings,
+    audit_log::AuditLog,
     automod::AutoMod,
     character_creator,
     client::Client,
@@ -57,6 +58,7 @@ impl Sys {
         censor: &ReadExpect<'_, Arc<censor::Censor>>,
         automod: &AutoMod,
         friends: &mut FriendsResource,
+        audit_log: &mut AuditLog,
         msg: ClientGeneral,
         time: Time,
         #[cfg(feature = "worldgen")] index: &ReadExpect<'_, IndexOwned>,
@@ -92,6 +94,8 @@ impl Sys {
                     crate::welcome::send_welcome_message(client, &player.alias);
                     // Register player as online in friends system and notify friends
                     friends.player_online(player.uuid(), player.alias.clone(), entity);
+                    // Audit log: login
+                    audit_log.log_login(&player.uuid(), &player.alias);
                 }
             }
 
@@ -315,6 +319,7 @@ pub struct Data<'a> {
     automod: ReadExpect<'a, AutoMod>,
     time: ReadExpect<'a, Time>,
     friends: WriteExpect<'a, FriendsResource>,
+    audit_log: WriteExpect<'a, AuditLog>,
     #[cfg(feature = "worldgen")]
     index: ReadExpect<'a, IndexOwned>,
     world: ReadExpect<'a, Arc<World>>,
@@ -348,6 +353,7 @@ impl<'a> System<'a> for Sys {
                     &data.censor,
                     &data.automod,
                     &mut data.friends,
+                    &mut data.audit_log,
                     msg,
                     *data.time,
                     #[cfg(feature = "worldgen")]

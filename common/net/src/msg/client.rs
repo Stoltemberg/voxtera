@@ -124,7 +124,8 @@ pub enum ClientGeneral {
     ChatMsg(comp::Content),
     Command(String, Vec<String>),
     FriendAction(super::FriendAction),
-    Terminate,
+        AdminAction(super::AdminAction),
+        Terminate,
     RequestPlayerPhysics {
         server_authoritative: bool,
     },
@@ -184,12 +185,13 @@ impl ClientMsg {
                             c_type.can_send_message()
                         },
                         //Always possible
-                        ClientGeneral::Command(_, _)
-                        | ClientGeneral::FriendAction(_)
-                        | ClientGeneral::Terminate
-                        // LodZoneRequest is required by the char select screen
-                        | ClientGeneral::LodZoneRequest { .. } => true,
-                        | ClientGeneral::RequestPlugins(_) => true,
+                                                ClientGeneral::Command(_, _)
+                                                | ClientGeneral::FriendAction(_)
+                                                | ClientGeneral::AdminAction(_)
+                                                | ClientGeneral::Terminate
+                                                // LodZoneRequest is required by the char select screen
+                                                | ClientGeneral::LodZoneRequest { .. } => true,
+                                                | ClientGeneral::RequestPlugins(_) => true,
                     }
             },
             ClientMsg::Ping(_) => true,

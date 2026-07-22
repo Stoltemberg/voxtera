@@ -1,0 +1,12 @@
+hud-admin-title = Painel de Administração
+hud-admin-players = Jogadores Online
+hud-admin-tp-to = TP Para
+hud-admin-tp-here = TP Aqui
+hud-admin-kick = Expulsar
+hud-admin-mute = Silenciar
+hud-admin-give-title = Gerar Item
+hud-admin-give = Dar
+hud-admin-godmode = Modo Deus
+hud-admin-pvp = PvP Global
+hud-admin-announce-title = Anúncio Global
+hud-admin-announce = Anunciar

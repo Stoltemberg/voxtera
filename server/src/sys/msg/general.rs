@@ -1,6 +1,6 @@
 use crate::client::Client;
 use common::{
-    comp::{ChatMode, ChatType, Content, Group, Player},
+    comp::{Admin, ChatMode, ChatType, Content, Group, Player},
     event::{self, EmitExt},
     event_emitters,
     resources::ProgramTime,
@@ -32,6 +32,7 @@ impl Sys {
         uids: &ReadStorage<'_, Uid>,
         chat_modes: &ReadStorage<'_, ChatMode>,
         groups: &ReadStorage<'_, Group>,
+        admins: &ReadStorage<'_, Admin>,
         msg: ClientGeneral,
     ) -> Result<(), crate::error::Error> {
         match msg {
@@ -93,6 +94,24 @@ impl Sys {
                     emitters.emit(event::CommandEvent(entity, name, args));
                 }
             },
+            ClientGeneral::AdminAction(action) => {
+                // Voxtera: admin actions are exclusively from the admin panel.
+                // Server validates comp::Admin before applying each action.
+                if player.is_some() {
+                    let is_admin = admins.get(entity).is_some();
+                    if !is_admin {
+                        warn!(?entity, "Received admin action from non-admin player");
+                    } else {
+                        // Emit as a command event for the server tick to process
+                        let action_str = format!("{:?}", action);
+                        emitters.emit(event::CommandEvent(
+                            entity,
+                            "admin_action".to_string(),
+                            vec![action_str],
+                        ));
+                    }
+                }
+            },
             ClientGeneral::Terminate => {
                 debug!(?entity, "Client send message to terminate session");
                 emitters.emit(event::ClientDisconnectEvent(
@@ -130,6 +149,7 @@ impl<'a> System<'a> for Sys {
         ReadStorage<'a, ChatMode>,
         ReadStorage<'a, Player>,
         ReadStorage<'a, Group>,
+        ReadStorage<'a, Admin>,
         WriteStorage<'a, Client>,
     );
 
@@ -139,7 +159,7 @@ impl<'a> System<'a> for Sys {
 
     fn run(
         _job: &mut Job<Self>,
-        (entities, events, program_time, uids, chat_modes, players, groups, mut clients): Self::SystemData,
+        (entities, events, program_time, uids, chat_modes, players, groups, admins, mut clients): Self::SystemData,
     ) {
         (&entities, &mut clients, players.maybe())
             .par_join()
@@ -155,6 +175,7 @@ impl<'a> System<'a> for Sys {
                             &uids,
                             &chat_modes,
                             &groups,
+                            &admins,
                             msg,
                         )
                     });

@@ -200,6 +200,19 @@ pub fn handle_client_disconnect(
                 .ecs()
                 .write_resource::<crate::friends::FriendsResource>()
                 .player_offline(&player_uuid);
+            // Audit log: logout
+            let alias = server
+                .state()
+                .ecs()
+                .read_storage::<comp::Player>()
+                .get(entity)
+                .map(|p| p.alias.clone())
+                .unwrap_or_else(|| "unknown".to_string());
+            server
+                .state()
+                .ecs()
+                .write_resource::<crate::audit_log::AuditLog>()
+                .log_logout(&player_uuid, &alias);
         }
     }
 

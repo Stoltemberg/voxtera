@@ -1,0 +1,12 @@
+hud-admin-title = Admin Panel
+hud-admin-players = Online Players
+hud-admin-tp-to = TP To
+hud-admin-tp-here = TP Here
+hud-admin-kick = Kick
+hud-admin-mute = Mute
+hud-admin-give-title = Give Item
+hud-admin-give = Give
+hud-admin-godmode = God Mode
+hud-admin-pvp = Global PvP
+hud-admin-announce-title = Global Announcement
+hud-admin-announce = Announce

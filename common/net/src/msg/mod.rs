@@ -47,6 +47,20 @@ pub enum FriendAction {
     Remove(String),
 }
 
+/// Actions initiated by the admin panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AdminAction {
+    TeleportTo(common::uid::Uid),
+    TeleportHere(common::uid::Uid),
+    Kick(common::uid::Uid),
+    Mute(common::uid::Uid, std::time::Duration),
+    Unmute(common::uid::Uid),
+    GiveItem(String, u16),
+    GodMode,
+    TogglePvp,
+    Announce(String),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PingMsg {
     Ping,

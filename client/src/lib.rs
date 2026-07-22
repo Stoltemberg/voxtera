@@ -59,8 +59,8 @@ use common_base::{prof_span, span};
 use common_i18n::Content;
 use common_net::{
     msg::{
-        ChatTypeContext, ClientGeneral, ClientMsg, ClientRegister, DisconnectReason, FriendAction,
-        FriendInfo, InviteAnswer, Notification, PingMsg, PlayerInfo, PlayerListUpdate,
+        AdminAction, ChatTypeContext, ClientGeneral, ClientMsg, ClientRegister, DisconnectReason,
+        FriendAction, FriendInfo, InviteAnswer, Notification, PingMsg, PlayerInfo, PlayerListUpdate,
         RegisterError, ServerGeneral, ServerInit, ServerRegisterAnswer,
         server::ServerDescription,
         world_msg::{EconomyInfo, PoiInfo, SiteId},
@@ -1285,6 +1285,7 @@ impl Client {
                     ClientGeneral::ChatMsg(_)
                     | ClientGeneral::Command(_, _)
                     | ClientGeneral::FriendAction(_)
+                    | ClientGeneral::AdminAction(_)
                     | ClientGeneral::Terminate
                     | ClientGeneral::RequestPlugins(_) => &mut self.general_stream,
                 };
@@ -2278,6 +2279,12 @@ impl Client {
         if refresh {
             self.send_msg(ClientGeneral::FriendAction(FriendAction::RequestList));
         }
+    }
+
+    /// Send an admin panel action to the server. The server validates that
+    /// the sender has the `comp::Admin` component before applying it.
+    pub fn send_admin_action(&mut self, action: AdminAction) {
+        self.send_msg(ClientGeneral::AdminAction(action));
     }
 
     /// Remove all cached terrain

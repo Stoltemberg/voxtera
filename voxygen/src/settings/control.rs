@@ -294,6 +294,8 @@ impl ControlSettings {
             GameInput::MuteSfx => return None,
             GameInput::MuteAmbience => return None,
             GameInput::ToggleWalk => char("B"),
+            // Admin panel — Ctrl+Alt+F12 (requires modifiers, handled in key press logic)
+            GameInput::AdminPanel => Key::Named(NamedKey::F12),
         }))
     }
 

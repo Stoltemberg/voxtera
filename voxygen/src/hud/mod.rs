@@ -1,4 +1,5 @@
 #![expect(non_local_definitions)] // because of WidgetCommon derive
+mod admin_panel;
 mod animation;
 mod bag;
 mod buffs;
@@ -51,6 +52,7 @@ use chrono::NaiveTime;
 use crafting::Crafting;
 use diary::{Diary, SelectedSkillTree};
 use esc_menu::EscMenu;
+use admin_panel::AdminPanel;
 use friends_panel::FriendsPanel;
 use group::Group;
 use img_ids::Imgs;
@@ -322,6 +324,7 @@ widget_ids! {
         esc_menu,
         social_window,
         online_count,
+        admin_panel,
         quest_window,
         tutorial_window,
         crafting_window,
@@ -948,8 +951,8 @@ pub struct Show {
     camera_clamp: bool,
     prompt_dialog: Option<PromptDialogSettings>,
     trade_amount_input_key: Option<TradeAmountInput>,
-    // A stack of open menus; the menu in focus should be on top
     focus: Vec<WindowId>,
+    admin_panel: bool,
 }
 
 impl Default for Show {
@@ -988,6 +991,7 @@ impl Show {
             zoom_lock: ChangeNotification::default(),
             camera_clamp: false,
             prompt_dialog: None,
+            admin_panel: false,
             trade_amount_input_key: None,
             focus: Vec::new(),
         }
@@ -1132,6 +1136,8 @@ impl Show {
     fn toggle_map(&mut self) { self.map(!self.map) }
 
     fn toggle_social(&mut self) { self.social(!self.social); }
+
+    fn toggle_admin_panel(&mut self) { self.admin_panel = !self.admin_panel; }
 
     fn toggle_crafting(&mut self) { self.crafting(!self.crafting) }
 
@@ -3952,6 +3958,28 @@ impl Hud {
             .color(TEXT_COLOR)
             .set(self.ids.online_count, ui_widgets);
 
+        // Admin panel — only visible to players with comp::Admin
+        if self.show.admin_panel {
+            let is_admin = client
+                .state()
+                .ecs()
+                .read_storage::<comp::Admin>()
+                .get(info.viewpoint_entity)
+                .is_some();
+            if is_admin {
+                let _ = AdminPanel::new(
+                    &self.imgs,
+                    &self.fonts,
+                    i18n,
+                    client,
+                )
+                .set(self.ids.admin_panel, ui_widgets);
+            } else {
+                // Non-admins can never open it; close it silently
+                self.show.admin_panel = false;
+            }
+        }
+
         // Diary
         if self.show.diary {
             let entity = info.viewpoint_entity;
@@ -5156,6 +5184,10 @@ impl Hud {
                     },
                     GameInput::ToggleIngameUi if state => {
                         self.show.ingame = !self.show.ingame;
+                        true
+                    },
+                    GameInput::AdminPanel if state => {
+                        self.show.toggle_admin_panel();
                         true
                     },
                     GameInput::MapZoomIn if state => {

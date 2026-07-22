@@ -273,6 +273,7 @@ impl Sys {
             | ClientGeneral::ChatMsg(_)
             | ClientGeneral::Command(..)
             | ClientGeneral::FriendAction(_)
+            | ClientGeneral::AdminAction(_)
             | ClientGeneral::Terminate
             | ClientGeneral::RequestPlugins(_) => {
                 debug!("Kicking possibly misbehaving client due to invalid client in game request");

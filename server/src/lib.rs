@@ -17,6 +17,7 @@ pub mod connection_handler;
 mod data_dir;
 pub mod error;
 pub mod events;
+pub mod audit_log;
 pub mod friends;
 pub mod input;
 pub mod location;
@@ -385,6 +386,7 @@ impl Server {
         let friends_path = data_dir.join("friends.ron");
         let friends_resource = friends::FriendsResource::load_from_file(&friends_path);
         state.ecs_mut().insert(friends_resource);
+        state.ecs_mut().insert(audit_log::AuditLog::new(data_dir));
         state.ecs_mut().insert(LoginProvider::new(
             settings.auth_server_address.clone(),
             Arc::clone(&runtime),
@@ -1264,6 +1266,11 @@ impl Server {
                 .ecs()
                 .read_resource::<friends::FriendsResource>()
                 .save_to_file(&friends_path);
+            // Flush audit log
+            self.state
+                .ecs()
+                .write_resource::<audit_log::AuditLog>()
+                .flush();
         }
 
         // Voxtera: tick spawn protection timers down.
@@ -1438,6 +1445,18 @@ impl Server {
                 self.handle_announce(entity, args);
                 return;
             },
+            "admin_action" => {
+                // Admin actions from the admin panel — already validated for comp::Admin
+                // in sys/msg/general.rs before reaching here.
+                if let Some(action_str) = args.first() {
+                    self.handle_admin_action(entity, action_str);
+                }
+                return;
+            },
+            "p" | "party" | "group" => {
+                self.handle_party_chat(entity, args);
+                return;
+            },
             _ => {},
         }
 
@@ -1582,6 +1601,72 @@ impl Server {
             Content::Plain(format!("[Anúncio] {}", message)),
         );
         self.notify_players(msg);
+    }
+
+    /// Handle admin actions dispatched from the admin panel.
+    /// The sender is already validated as comp::Admin in sys/msg/general.rs.
+    fn handle_admin_action(&mut self, entity: EcsEntity, action_str: &str) {
+        let player_alias = self
+            .state
+            .ecs()
+            .read_storage::<comp::Player>()
+            .get(entity)
+            .map(|p| p.alias.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        // Log to audit log
+        {
+            let mut audit = self.state.ecs().write_resource::<audit_log::AuditLog>();
+            audit.log_admin_action(&player_alias, action_str, "");
+        }
+
+        // Currently a placeholder — full action dispatch will be added
+        // when the admin panel has real buttons that send typed AdminAction.
+        info!(?player_alias, ?action_str, "Admin action received");
+    }
+
+    /// Handle `/p <mensagem>` — send a message to the player's current group.
+    /// Works without changing the persistent ChatMode.
+    fn handle_party_chat(&mut self, entity: EcsEntity, args: Vec<String>) {
+        let message = args.join(" ");
+        if message.is_empty() {
+            self.notify_client(
+                entity,
+                ServerGeneral::server_msg(
+                    ChatType::CommandError,
+                    Content::Plain("Uso: /p <mensagem>".to_string()),
+                ),
+            );
+            return;
+        }
+
+        let ecs = self.state.ecs();
+        let uids = ecs.read_storage::<Uid>();
+        let groups = ecs.read_storage::<comp::Group>();
+
+        let from = match uids.get(entity) {
+            Some(uid) => *uid,
+            None => return,
+        };
+
+        let group = match groups.get(entity) {
+            Some(g) => *g,
+            None => {
+                self.notify_client(
+                    entity,
+                    ServerGeneral::server_msg(
+                        ChatType::CommandError,
+                        Content::Plain("Você não está em um grupo.".to_string()),
+                    ),
+                );
+                return;
+            },
+        };
+
+        let msg = ChatType::Group(from, group).into_msg(Content::Plain(message));
+
+        // Use the state's chat resolution pipeline
+        self.state.send_chat(msg, true);
     }
 
     /// Handle `/addfriend <playername>` — send a friend request to another

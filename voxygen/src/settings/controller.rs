@@ -484,6 +484,7 @@ impl ControllerSettings {
             GameInput::Fullscreen => Some(Button::Simple(GilButton::Unknown)),
             GameInput::Screenshot => Some(Button::Simple(GilButton::Unknown)),
             GameInput::ToggleIngameUi => Some(Button::Simple(GilButton::Unknown)),
+            GameInput::AdminPanel => Some(Button::Simple(GilButton::Unknown)),
             GameInput::Roll => Some(Button::Simple(GilButton::RightThumb)),
             GameInput::GiveUp => Some(Button::Simple(GilButton::South)),
             GameInput::Respawn => Some(Button::Simple(GilButton::South)),
@@ -783,6 +784,11 @@ impl ControllerSettings {
                 mod2: Button::Simple(GilButton::Unknown),
             }),
             GameInput::ToggleIngameUi => Some(LayerEntry {
+                button: Button::Simple(GilButton::Unknown),
+                mod1: Button::Simple(GilButton::Unknown),
+                mod2: Button::Simple(GilButton::Unknown),
+            }),
+            GameInput::AdminPanel => Some(LayerEntry {
                 button: Button::Simple(GilButton::Unknown),
                 mod1: Button::Simple(GilButton::Unknown),
                 mod2: Button::Simple(GilButton::Unknown),
