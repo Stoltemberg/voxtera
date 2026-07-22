@@ -72,7 +72,7 @@ impl LauncherConfig {
     }
 }
 
-fn replace_file_atomic(temp_file: &Path, destination: &Path) -> std::io::Result<()> {
+pub(crate) fn replace_file_atomic(temp_file: &Path, destination: &Path) -> std::io::Result<()> {
     let destination_exists = destination.exists();
     let temp_file = wide_path(temp_file);
     let destination = wide_path(destination);

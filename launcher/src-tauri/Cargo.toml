@@ -12,7 +12,7 @@ crate-type = ["lib", "cdylib", "staticlib"]
 [dependencies]
 clap = { version = "4.6.4", features = ["derive"] }
 hex = "0.4.3"
-reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls", "stream"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["http2", "json", "rustls", "stream"] }
 semver = { version = "1.0.28", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

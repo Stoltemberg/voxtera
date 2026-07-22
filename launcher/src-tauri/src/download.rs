@@ -14,9 +14,17 @@ use tokio::{
     sync::watch,
 };
 
-use crate::{DownloadProgress, ProgressThrottle, ReleaseAsset};
+use crate::{DownloadProgress, ProgressThrottle, ReleaseAsset, config::replace_file_atomic};
 
-const MAX_WRITE_CHUNK: usize = 8 * 1024 * 1024;
+// A response owns at most one application frame; write slices borrow that frame
+// and never allocate a second archive buffer. Keep explicit margin for reqwest,
+// Hyper, TLS, and task bookkeeping inside the global 32 MiB budget.
+const DOWNLOAD_MEMORY_BUDGET_BYTES: usize = 32 * 1024 * 1024;
+const HTTP2_MAX_FRAME_BYTES: u32 = 64 * 1024;
+pub const MAX_RESPONSE_FRAME_BYTES: usize = 4 * 1024 * 1024;
+const MAX_WRITE_SLICE_BYTES: usize = 1024 * 1024;
+const _: () =
+    assert!(MAX_RESPONSE_FRAME_BYTES + MAX_WRITE_SLICE_BYTES < DOWNLOAD_MEMORY_BUDGET_BYTES);
 
 #[derive(Debug, Clone)]
 pub struct DownloadRequest {
@@ -92,6 +100,7 @@ impl DownloadManager {
         let client = Client::builder()
             .user_agent(concat!("VoxteraLauncher/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(10))
+            .http2_max_frame_size(HTTP2_MAX_FRAME_BYTES)
             .build()
             .map_err(DownloadError::Network)?;
         Ok(Self {
@@ -181,19 +190,21 @@ impl DownloadManager {
                 },
             };
 
-            for slice in chunk.chunks(MAX_WRITE_CHUNK) {
-                limiter.wait(slice.len() as u64, &self.cancellation).await?;
-                file.write_all(slice).await.map_err(DownloadError::Cache)?;
-                bytes_written = bytes_written.saturating_add(slice.len() as u64);
-                if bytes_written > request.asset.size {
-                    file.flush().await.map_err(DownloadError::Cache)?;
-                    return Err(DownloadError::Protocol(
-                        "response exceeded the declared asset size".to_owned(),
-                    ));
-                }
-                if let Some(event) = progress.observe(bytes_written, Instant::now(), false) {
-                    sink(event);
-                }
+            if let Err(error) = write_frame(
+                &mut file,
+                &chunk,
+                &mut bytes_written,
+                request.asset.size,
+                &mut limiter,
+                &self.cancellation,
+            )
+            .await
+            {
+                file.flush().await.map_err(DownloadError::Cache)?;
+                return Err(error);
+            }
+            if let Some(event) = progress.observe(bytes_written, Instant::now(), false) {
+                sink(event);
             }
         }
 
@@ -363,10 +374,15 @@ async fn open_part(path: &Path, append: bool) -> Result<File, DownloadError> {
 async fn persist_metadata(path: &Path, metadata: &ResumeMetadata) -> Result<(), DownloadError> {
     let bytes =
         serde_json::to_vec(metadata).map_err(|error| DownloadError::Protocol(error.to_string()))?;
-    let mut file = File::create(path).await.map_err(DownloadError::Cache)?;
+    let temporary_path = sibling_with_suffix(path, ".tmp");
+    let mut file = File::create(&temporary_path)
+        .await
+        .map_err(DownloadError::Cache)?;
     file.write_all(&bytes).await.map_err(DownloadError::Cache)?;
     file.flush().await.map_err(DownloadError::Cache)?;
-    file.sync_all().await.map_err(DownloadError::Cache)
+    file.sync_all().await.map_err(DownloadError::Cache)?;
+    drop(file);
+    replace_file_atomic(&temporary_path, path).map_err(DownloadError::Cache)
 }
 
 async fn remove_if_present(path: &Path) -> Result<(), DownloadError> {
@@ -381,6 +397,41 @@ fn sibling_with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut name = OsString::from(path.as_os_str());
     name.push(suffix);
     PathBuf::from(name)
+}
+
+fn validate_frame_size(frame_bytes: usize) -> Result<(), DownloadError> {
+    if frame_bytes > MAX_RESPONSE_FRAME_BYTES {
+        Err(DownloadError::Protocol(format!(
+            "response frame exceeds the {MAX_RESPONSE_FRAME_BYTES}-byte safety limit"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+async fn write_frame(
+    file: &mut File,
+    frame: &[u8],
+    bytes_written: &mut u64,
+    expected_size: u64,
+    limiter: &mut BandwidthLimiter,
+    cancellation: &CancellationToken,
+) -> Result<(), DownloadError> {
+    validate_frame_size(frame.len())?;
+    let frame_bytes = u64::try_from(frame.len())
+        .map_err(|_| DownloadError::Protocol("response frame size overflow".to_owned()))?;
+    if bytes_written.saturating_add(frame_bytes) > expected_size {
+        return Err(DownloadError::Protocol(
+            "response exceeded the declared asset size".to_owned(),
+        ));
+    }
+
+    for slice in frame.chunks(MAX_WRITE_SLICE_BYTES) {
+        limiter.wait(slice.len() as u64, cancellation).await?;
+        file.write_all(slice).await.map_err(DownloadError::Cache)?;
+        *bytes_written += slice.len() as u64;
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -419,5 +470,49 @@ impl BandwidthLimiter {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, time::Instant};
+
+    use tokio::fs::OpenOptions;
+
+    use super::{
+        BandwidthLimiter, CancellationToken, DownloadError, MAX_RESPONSE_FRAME_BYTES, write_frame,
+    };
+
+    #[tokio::test]
+    async fn oversized_frame_is_rejected_before_touching_resumable_state() {
+        let temp = tempfile::tempdir().unwrap();
+        let part = temp.path().join("archive.zip.part");
+        let metadata = temp.path().join("archive.zip.part.json");
+        let original_part = b"valid partial bytes";
+        let original_metadata = br#"{"etag":"etag-v1"}"#;
+        fs::write(&part, original_part).unwrap();
+        fs::write(&metadata, original_metadata).unwrap();
+        let mut file = OpenOptions::new().append(true).open(&part).await.unwrap();
+        let mut bytes_written = original_part.len() as u64;
+        let mut limiter = BandwidthLimiter::new(None, Instant::now());
+        let cancellation = CancellationToken::new();
+        let oversized_frame = vec![0_u8; MAX_RESPONSE_FRAME_BYTES + 1];
+
+        let error = write_frame(
+            &mut file,
+            &oversized_frame,
+            &mut bytes_written,
+            u64::MAX,
+            &mut limiter,
+            &cancellation,
+        )
+        .await
+        .unwrap_err();
+        drop(file);
+
+        assert!(matches!(error, DownloadError::Protocol(_)));
+        assert_eq!(bytes_written, original_part.len() as u64);
+        assert_eq!(fs::read(part).unwrap(), original_part);
+        assert_eq!(fs::read(metadata).unwrap(), original_metadata);
     }
 }

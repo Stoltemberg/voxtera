@@ -273,6 +273,44 @@ async fn stale_resume_metadata_is_discarded_without_sending_range() {
     assert_eq!(fs::read(fixture.part_path()).unwrap(), bytes);
 }
 
+#[tokio::test]
+async fn metadata_rewrite_is_valid_and_removes_the_atomic_temporary_file() {
+    let first_bytes = test_bytes();
+    let first_server = RangeServer::new(&first_bytes, "etag-v1").await;
+    let fixture = DownloadFixture::new();
+    fixture
+        .manager
+        .download(
+            fixture.request(first_server.url(), first_bytes.len() as u64),
+            fixture.sink(),
+        )
+        .await
+        .unwrap();
+
+    let temporary_path = PathBuf::from(format!("{}.tmp", fixture.metadata_path().display()));
+    fs::write(&temporary_path, b"interrupted metadata write").unwrap();
+    let second_bytes = vec![42_u8; first_bytes.len()];
+    let second_server = RangeServer::new(&second_bytes, "etag-v2").await;
+    let second_url = second_server.url();
+
+    fixture
+        .manager
+        .download(
+            fixture.request(second_url.clone(), second_bytes.len() as u64),
+            fixture.sink(),
+        )
+        .await
+        .unwrap();
+
+    let metadata: serde_json::Value =
+        serde_json::from_slice(&fs::read(fixture.metadata_path()).unwrap()).unwrap();
+    assert_eq!(metadata["url"], second_url);
+    assert_eq!(metadata["etag"], "etag-v2");
+    assert_eq!(metadata["expected_size"], second_bytes.len() as u64);
+    assert!(!temporary_path.exists());
+    assert_eq!(fs::read(fixture.part_path()).unwrap(), second_bytes);
+}
+
 #[test]
 fn progress_is_immediate_throttled_to_four_hz_and_forced_at_completion() {
     let started = Instant::now();
