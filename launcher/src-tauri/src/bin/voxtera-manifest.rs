@@ -1,4 +1,8 @@
-use std::{path::PathBuf, process::ExitCode};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process::ExitCode,
+};
 
 use clap::Parser;
 use launcher_core::{build_manifest, manifest_json};
@@ -35,6 +39,7 @@ fn main() -> ExitCode {
 }
 
 fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
+    ensure_output_outside_input(&args.input, &args.output)?;
     let manifest = build_manifest(
         &args.input,
         &args.archive,
@@ -42,5 +47,25 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         args.minimum_launcher_version,
     )?;
     std::fs::write(args.output, manifest_json(&manifest)?)?;
+    Ok(())
+}
+
+fn ensure_output_outside_input(input: &Path, output: &Path) -> io::Result<()> {
+    let input = input.canonicalize()?;
+    let output_parent = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+        .canonicalize()?;
+    let existing_output = output.canonicalize().ok();
+    if output_parent.starts_with(&input)
+        || existing_output
+            .as_ref()
+            .is_some_and(|path| path.starts_with(&input))
+    {
+        return Err(io::Error::other(
+            "O manifesto de saída deve ficar fora da distribuição de entrada.",
+        ));
+    }
     Ok(())
 }

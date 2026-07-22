@@ -30,7 +30,11 @@ fn valid_manifest() -> Manifest {
                 sha256: HASH.to_owned(),
             },
         ],
-        preserved_paths: vec!["userdata/".to_owned(), "screenshots/".to_owned()],
+        preserved_paths: vec![
+            "userdata/".to_owned(),
+            "screenshots/".to_owned(),
+            "settings/".to_owned(),
+        ],
         minimum_launcher_version: Version::parse("0.3.0-preview.1").unwrap(),
     }
 }
@@ -47,6 +51,63 @@ fn cli_requires_an_explicit_minimum_launcher_version() {
         help.contains("--minimum-launcher-version <VERSION>"),
         "{help}"
     );
+}
+
+#[test]
+fn cli_rejects_output_inside_the_input_tree() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("Voxtera.exe"), b"game").unwrap();
+    let archive_root = tempfile::tempdir().unwrap();
+    let archive = archive_root.path().join("Voxtera-windows-x64.zip");
+    fs::write(&archive, b"archive").unwrap();
+    let output = root.path().join("voxtera-manifest.json");
+
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_voxtera-manifest"))
+        .arg("--input")
+        .arg(root.path())
+        .arg("--archive")
+        .arg(&archive)
+        .args(["--version", "v0.2.3"])
+        .args(["--minimum-launcher-version", "0.3.0-preview.1"])
+        .arg("--output")
+        .arg(&output)
+        .output()
+        .unwrap();
+
+    assert!(!result.status.success());
+    assert!(!output.exists());
+    assert_eq!(
+        String::from_utf8(result.stderr).unwrap(),
+        "voxtera-manifest: O manifesto de saída deve ficar fora da distribuição de entrada.\n"
+    );
+}
+
+#[test]
+fn cli_accepts_a_relative_output_outside_the_input_tree() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("Voxtera.exe"), b"game").unwrap();
+    let artifacts = tempfile::tempdir().unwrap();
+    let archive = artifacts.path().join("Voxtera-windows-x64.zip");
+    fs::write(&archive, b"archive").unwrap();
+
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_voxtera-manifest"))
+        .current_dir(artifacts.path())
+        .arg("--input")
+        .arg(root.path())
+        .arg("--archive")
+        .arg(&archive)
+        .args(["--version", "v0.2.3"])
+        .args(["--minimum-launcher-version", "0.3.0-preview.1"])
+        .args(["--output", "voxtera-manifest.json"])
+        .output()
+        .unwrap();
+
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(artifacts.path().join("voxtera-manifest.json").exists());
 }
 
 #[test]
@@ -72,6 +133,14 @@ fn generator_preserves_the_explicit_minimum_launcher_version() {
 #[test]
 fn accepts_schema_one_semver_and_required_preserved_rules() {
     valid_manifest().validate().unwrap();
+}
+
+#[test]
+fn rejects_a_manifest_without_the_settings_preservation_rule() {
+    let mut manifest = valid_manifest();
+    manifest.preserved_paths.retain(|path| path != "settings/");
+
+    assert_eq!(manifest.validate().unwrap_err().code(), "manifest_contract");
 }
 
 #[test]
@@ -149,9 +218,11 @@ fn rejects_missing_or_unsafe_preserved_rules() {
 
 #[test]
 fn rejects_managed_files_inside_preserved_paths() {
-    let mut manifest = valid_manifest();
-    manifest.files[1].path = "userdata/save.ron".to_owned();
-    assert_eq!(manifest.validate().unwrap_err().code(), "manifest_contract");
+    for path in ["userdata/save.ron", "settings/profile.ron"] {
+        let mut manifest = valid_manifest();
+        manifest.files[1].path = path.to_owned();
+        assert_eq!(manifest.validate().unwrap_err().code(), "manifest_contract");
+    }
 }
 
 #[test]
@@ -184,6 +255,7 @@ fn identical_trees_produce_byte_identical_golden_manifests() {
             "launcher/state.json",
             "userdata/save.ron",
             "screenshots/a.png",
+            "settings/profile.ron",
             "download.part",
             "update.tmp",
         ] {
@@ -229,6 +301,32 @@ fn generator_rejects_the_wrong_archive_name() {
         .unwrap_err()
         .code(),
         "manifest_contract"
+    );
+}
+
+#[test]
+fn generator_excludes_the_preserved_settings_directory() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("Voxtera.exe"), b"game").unwrap();
+    fs::create_dir(root.path().join("settings")).unwrap();
+    fs::write(root.path().join("settings/profile.ron"), b"player settings").unwrap();
+    let archive_root = tempfile::tempdir().unwrap();
+    let archive = archive_root.path().join("Voxtera-windows-x64.zip");
+    fs::write(&archive, b"archive").unwrap();
+
+    let manifest = build_manifest(
+        root.path(),
+        &archive,
+        Version::parse("0.2.3").unwrap(),
+        Version::parse("0.3.0-preview.1").unwrap(),
+    )
+    .unwrap();
+
+    assert!(
+        manifest
+            .files
+            .iter()
+            .all(|file| !file.path.starts_with("settings/"))
     );
 }
 

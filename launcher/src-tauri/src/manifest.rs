@@ -15,7 +15,7 @@ use crate::Channel;
 pub const MANIFEST_SCHEMA_VERSION: u32 = 1;
 pub const ARCHIVE_NAME: &str = "Voxtera-windows-x64.zip";
 pub const GAME_EXECUTABLE: &str = "Voxtera.exe";
-const REQUIRED_PRESERVED_PATHS: [&str; 2] = ["userdata/", "screenshots/"];
+const REQUIRED_PRESERVED_PATHS: [&str; 3] = ["userdata/", "screenshots/", "settings/"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Manifest {
@@ -299,7 +299,7 @@ fn is_excluded(path: &str) -> bool {
     let root = lower.split('/').next().unwrap_or_default();
     matches!(
         root,
-        "cache" | "logs" | "launcher" | "userdata" | "screenshots"
+        "cache" | "logs" | "launcher" | "userdata" | "screenshots" | "settings"
     ) || lower.ends_with(".tmp")
         || lower.ends_with(".part")
         || lower.ends_with(".partial")

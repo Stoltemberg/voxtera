@@ -27,7 +27,8 @@
   ],
   "preserved_paths": [
     "userdata/",
-    "screenshots/"
+    "screenshots/",
+    "settings/"
   ],
   "minimum_launcher_version": "0.3.0-preview.1"
 }
