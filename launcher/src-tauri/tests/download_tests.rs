@@ -1,7 +1,8 @@
 mod support;
 
 use std::{
-    fs,
+    fs::{self, File},
+    io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -309,6 +310,48 @@ async fn metadata_rewrite_is_valid_and_removes_the_atomic_temporary_file() {
     assert_eq!(metadata["expected_size"], second_bytes.len() as u64);
     assert!(!temporary_path.exists());
     assert_eq!(fs::read(fixture.part_path()).unwrap(), second_bytes);
+}
+
+#[tokio::test]
+async fn http2_transport_frames_a_body_larger_than_the_memory_budget() {
+    const BODY_BYTES: usize = 33 * 1024 * 1024;
+    const SERVER_APPLICATION_CHUNK_BYTES: usize = 8 * 1024 * 1024;
+    const CLIENT_HTTP2_MAX_FRAME_BYTES: usize = 64 * 1024;
+    let server =
+        RangeServer::large_streaming(BODY_BYTES, SERVER_APPLICATION_CHUNK_BYTES, "etag-large")
+            .await;
+    let fixture = DownloadFixture::new();
+
+    let result = fixture
+        .manager
+        .download(
+            fixture.request(server.url(), BODY_BYTES as u64),
+            fixture.sink(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        server.last_http_version(),
+        Some(axum::http::Version::HTTP_2)
+    );
+    assert_eq!(result.bytes_written, BODY_BYTES as u64);
+    println!(
+        "HTTP/2 max bytes_stream item observed: {} bytes",
+        result.max_frame_bytes_observed
+    );
+    assert!(result.max_frame_bytes_observed <= CLIENT_HTTP2_MAX_FRAME_BYTES);
+    assert_eq!(
+        fixture.part_path().metadata().unwrap().len(),
+        BODY_BYTES as u64
+    );
+    let mut file = File::open(fixture.part_path()).unwrap();
+    let mut boundary = [0_u8; 1024];
+    file.read_exact(&mut boundary).unwrap();
+    assert!(boundary.iter().all(|byte| *byte == 0xA5));
+    file.seek(SeekFrom::End(-(boundary.len() as i64))).unwrap();
+    file.read_exact(&mut boundary).unwrap();
+    assert!(boundary.iter().all(|byte| *byte == 0xA5));
 }
 
 #[test]

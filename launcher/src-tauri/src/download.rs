@@ -21,10 +21,19 @@ use crate::{DownloadProgress, ProgressThrottle, ReleaseAsset, config::replace_fi
 // Hyper, TLS, and task bookkeeping inside the global 32 MiB budget.
 const DOWNLOAD_MEMORY_BUDGET_BYTES: usize = 32 * 1024 * 1024;
 const HTTP2_MAX_FRAME_BYTES: u32 = 64 * 1024;
+const HTTP2_MAX_HEADER_LIST_BYTES: u32 = 64 * 1024;
+const HTTP2_STREAM_WINDOW_BYTES: u32 = 256 * 1024;
+const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 512 * 1024;
 pub const MAX_RESPONSE_FRAME_BYTES: usize = 4 * 1024 * 1024;
 const MAX_WRITE_SLICE_BYTES: usize = 1024 * 1024;
-const _: () =
-    assert!(MAX_RESPONSE_FRAME_BYTES + MAX_WRITE_SLICE_BYTES < DOWNLOAD_MEMORY_BUDGET_BYTES);
+const _: () = assert!(
+    MAX_RESPONSE_FRAME_BYTES
+        + MAX_WRITE_SLICE_BYTES
+        + HTTP2_MAX_HEADER_LIST_BYTES as usize
+        + HTTP2_STREAM_WINDOW_BYTES as usize
+        + (HTTP2_CONNECTION_WINDOW_BYTES as usize)
+        < DOWNLOAD_MEMORY_BUDGET_BYTES
+);
 
 #[derive(Debug, Clone)]
 pub struct DownloadRequest {
@@ -39,6 +48,7 @@ pub struct DownloadOutcome {
     pub bytes_written: u64,
     pub part_path: PathBuf,
     pub metadata_path: PathBuf,
+    pub max_frame_bytes_observed: usize,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -100,7 +110,12 @@ impl DownloadManager {
         let client = Client::builder()
             .user_agent(concat!("VoxteraLauncher/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(10))
+            .http2_prior_knowledge()
+            .http2_initial_stream_window_size(HTTP2_STREAM_WINDOW_BYTES)
+            .http2_initial_connection_window_size(HTTP2_CONNECTION_WINDOW_BYTES)
+            .http2_adaptive_window(false)
             .http2_max_frame_size(HTTP2_MAX_FRAME_BYTES)
+            .http2_max_header_list_size(HTTP2_MAX_HEADER_LIST_BYTES)
             .build()
             .map_err(DownloadError::Network)?;
         Ok(Self {
@@ -149,6 +164,7 @@ impl DownloadManager {
                 bytes_written: offset,
                 part_path,
                 metadata_path,
+                max_frame_bytes_observed: 0,
             });
         }
 
@@ -169,6 +185,7 @@ impl DownloadManager {
         }
         let mut limiter = BandwidthLimiter::new(request.bandwidth_limit_kib, started_at);
         let mut bytes_written = initial_bytes;
+        let mut max_frame_bytes_observed = 0;
         let mut stream = response.bytes_stream();
 
         loop {
@@ -189,6 +206,7 @@ impl DownloadManager {
                     return Err(DownloadError::Network(error));
                 },
             };
+            max_frame_bytes_observed = max_frame_bytes_observed.max(chunk.len());
 
             if let Err(error) = write_frame(
                 &mut file,
@@ -226,6 +244,7 @@ impl DownloadManager {
             bytes_written,
             part_path,
             metadata_path,
+            max_frame_bytes_observed,
         })
     }
 

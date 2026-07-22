@@ -9,8 +9,8 @@ use std::{
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::State,
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    extract::{Request, State},
+    http::{HeaderValue, StatusCode, Version, header},
     response::Response,
     routing::get,
 };
@@ -33,6 +33,8 @@ struct ServerState {
     etag: Arc<str>,
     mode: ServerMode,
     requests: Arc<Mutex<Vec<(Option<String>, Option<String>)>>>,
+    versions: Arc<Mutex<Vec<Version>>>,
+    generated: Option<(usize, usize)>,
 }
 
 pub struct RangeServer {
@@ -52,6 +54,8 @@ impl RangeServer {
             etag: Arc::from(etag),
             mode,
             requests: Arc::new(Mutex::new(Vec::new())),
+            versions: Arc::new(Mutex::new(Vec::new())),
+            generated: None,
         };
         let app = Router::new()
             .route("/asset", get(serve_asset))
@@ -69,6 +73,30 @@ impl RangeServer {
     }
 
     pub fn url(&self) -> String { format!("http://{}/asset", self.address) }
+
+    pub async fn large_streaming(total_bytes: usize, chunk_bytes: usize, etag: &str) -> Self {
+        let state = ServerState {
+            bytes: Arc::new(Vec::new()),
+            etag: Arc::from(etag),
+            mode: ServerMode::Normal,
+            requests: Arc::new(Mutex::new(Vec::new())),
+            versions: Arc::new(Mutex::new(Vec::new())),
+            generated: Some((total_bytes, chunk_bytes)),
+        };
+        let app = Router::new()
+            .route("/asset", get(serve_asset))
+            .with_state(state.clone());
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        Self {
+            address,
+            state,
+            task,
+        }
+    }
 
     pub fn last_range(&self) -> Option<String> {
         self.state
@@ -98,13 +126,19 @@ impl RangeServer {
     }
 
     pub fn request_count(&self) -> usize { self.state.requests.lock().unwrap().len() }
+
+    pub fn last_http_version(&self) -> Option<Version> {
+        self.state.versions.lock().unwrap().last().copied()
+    }
 }
 
 impl Drop for RangeServer {
     fn drop(&mut self) { self.task.abort(); }
 }
 
-async fn serve_asset(State(state): State<ServerState>, headers: HeaderMap) -> Response<Body> {
+async fn serve_asset(State(state): State<ServerState>, request: Request) -> Response<Body> {
+    state.versions.lock().unwrap().push(request.version());
+    let headers = request.headers();
     let requested_range = headers
         .get(header::RANGE)
         .and_then(|value| value.to_str().ok())
@@ -118,6 +152,27 @@ async fn serve_asset(State(state): State<ServerState>, headers: HeaderMap) -> Re
         .lock()
         .unwrap()
         .push((requested_range.clone(), if_range.clone()));
+
+    if let Some((total_bytes, chunk_bytes)) = state.generated {
+        let body = stream::unfold(0usize, move |offset| async move {
+            if offset >= total_bytes {
+                None
+            } else {
+                let next = (offset + chunk_bytes).min(total_bytes);
+                Some((
+                    Ok::<_, Infallible>(Bytes::from(vec![0xA5; next - offset])),
+                    next,
+                ))
+            }
+        });
+        return response(
+            StatusCode::OK,
+            &state.etag,
+            Some(total_bytes as u64),
+            None,
+            Body::from_stream(body),
+        );
+    }
 
     if state.mode == ServerMode::Disconnect {
         let split = state.bytes.len().min(4096);
