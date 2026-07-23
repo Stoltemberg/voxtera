@@ -751,12 +751,14 @@ where
         let mut state = self.lock_state();
         let available = release.manifest.version.to_string();
         state.snapshot.available_version = Some(available.clone());
-        state.snapshot.phase = if state.snapshot.local_build_valid
-            && state.snapshot.installed_version.as_deref() == Some(available.as_str())
-        {
-            LauncherPhase::Ready
+        state.snapshot.phase = if state.snapshot.local_build_valid {
+            if state.snapshot.installed_version.as_deref() == Some(available.as_str()) {
+                LauncherPhase::Ready
+            } else {
+                LauncherPhase::UpdateAvailable
+            }
         } else {
-            LauncherPhase::UpdateAvailable
+            LauncherPhase::NeedsInstall
         };
         state.snapshot.last_error = None;
         state.release = Some(release);
