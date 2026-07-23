@@ -31,10 +31,11 @@ button {
   cursor: pointer;
   transition:
     background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease;
+    border-color var(--motion-fast) ease,
+    opacity var(--motion-fast) ease;
 }
 
-button:hover {
+button:hover:not(:disabled) {
   background: var(--color-ice);
 }
 
@@ -42,6 +43,13 @@ button:focus-visible {
   outline: 3px solid var(--color-gold);
   outline-offset: 3px;
 }
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Layout ---------- */
 
 .launcher-shell {
   display: grid;
@@ -61,13 +69,16 @@ button:focus-visible {
   background: var(--color-stone);
   box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 35%);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .launcher-logo {
   display: block;
   width: min(100%, 20rem);
   max-height: 9rem;
-  margin: 0 auto 1.5rem;
+  margin: 0 auto;
   object-fit: contain;
 }
 
@@ -90,4 +101,293 @@ h1 {
   margin: 1rem auto 1.75rem;
   color: var(--color-muted);
   line-height: 1.6;
+}
+
+/* ---------- Status line ---------- */
+
+.launcher-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.status-icon {
+  flex-shrink: 0;
+}
+
+.status-text {
+  font-weight: 600;
+}
+
+.status-version {
+  font-size: 0.75rem;
+  color: var(--color-ice);
+  font-weight: 500;
+}
+
+.status-version.available {
+  color: var(--color-gold);
+}
+
+/* ---------- Progress bar ---------- */
+
+.progress-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-stone-raised);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--color-ice-strong);
+  transition: width var(--motion-normal) ease;
+}
+
+.progress-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Error banner ---------- */
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-small);
+  background: rgb(230 106 98 / 8%);
+  color: var(--color-danger);
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.error-banner > span {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.error-dismiss {
+  min-height: 0;
+  padding: 0.25rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-danger);
+  cursor: pointer;
+}
+
+.error-dismiss:hover {
+  background: rgb(230 106 98 / 15%);
+}
+
+/* ---------- Repair info ---------- */
+
+.repair-clean,
+.repair-found {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-small);
+  font-size: 0.8rem;
+}
+
+.repair-clean {
+  background: rgb(139 232 255 / 10%);
+  color: var(--color-ice);
+}
+
+.repair-found {
+  background: rgb(230 106 98 / 10%);
+  color: var(--color-danger);
+}
+
+/* ---------- Action buttons ---------- */
+
+.launcher-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 48px;
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-color: var(--color-stone-raised);
+  background: transparent;
+  color: var(--color-text);
+  min-height: 48px;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-stone-raised);
+}
+
+/* ---------- Secondary icon buttons ---------- */
+
+.launcher-secondary {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0.5rem;
+  border: 1px solid var(--color-stone-raised);
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+
+.btn-icon:hover {
+  color: var(--color-ice);
+  border-color: var(--color-ice);
+}
+
+/* ---------- Install directory ---------- */
+
+.install-dir {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  background: var(--color-void);
+  border-radius: var(--radius-small);
+  word-break: break-all;
+  text-align: center;
+  cursor: pointer;
+  transition: color var(--motion-fast) ease;
+}
+
+.install-dir:hover {
+  color: var(--color-ice);
+}
+
+/* ---------- Settings panel ---------- */
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  margin-top: 0.5rem;
+  border: 1px solid var(--color-stone-raised);
+  border-radius: var(--radius-small);
+  background: var(--color-void);
+  text-align: left;
+  animation: slide-in var(--motion-normal) ease;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.settings-field > span {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.settings-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-input-row input {
+  flex: 1;
+}
+
+.settings-field input[type="text"],
+.settings-field input[type="number"] {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-stone-raised);
+  border-radius: var(--radius-small);
+  background: var(--color-stone);
+  color: var(--color-text);
+  font-size: 0.8rem;
+}
+
+.settings-field input:focus {
+  outline: none;
+  border-color: var(--color-ice);
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.settings-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-ice-strong);
 }

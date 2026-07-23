@@ -125,9 +125,13 @@ pub fn launch_game(state: State<'_, AppState>) -> Result<u32, LauncherError> {
 pub fn open_logs(state: State<'_, AppState>) -> Result<(), LauncherError> {
     std::fs::create_dir_all(&state.paths.logs_dir)
         .map_err(|_| LauncherError::permission_denied())?;
-    Command::new("explorer.exe")
-        .arg(&state.paths.logs_dir)
-        .spawn()
+    {
+        let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_owned());
+        let explorer = PathBuf::from(system_root).join("system32").join("explorer.exe");
+        Command::new(explorer)
+            .arg(&state.paths.logs_dir)
+            .spawn()
+    }
         .map(|_| ())
         .map_err(|_| LauncherError::launch_failed())
 }
