@@ -56,7 +56,8 @@ describe('App', () => {
 
   it('renders the Voxtera launcher shell in Portuguese', async () => {
     render(<App />);
-    expect(await screen.findByRole('heading', { name: 'Voxtera' })).toBeVisible();
+    expect(await screen.findByAltText('')).toBeVisible(); // logo image
+    expect(screen.getByText('Launcher oficial')).toBeVisible();
   });
 
   it('shows Jogar button when phase is ready', async () => {
@@ -132,7 +133,7 @@ describe('App', () => {
   it('shows settings panel when settings icon is clicked', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByRole('heading', { name: 'Voxtera' });
+    await screen.findByAltText('');
     const settingsButton = screen.getByTitle('Configurações');
     await user.click(settingsButton);
     expect(await screen.findByRole('dialog', { name: 'Configurações' })).toBeVisible();

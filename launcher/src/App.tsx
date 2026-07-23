@@ -137,7 +137,8 @@ export function App() {
       const snap = await invoke<LauncherSnapshot>('check_release');
       setSnapshot(snap);
     } catch (e: unknown) {
-      setError(String(e));
+      const msg = typeof e === 'string' ? e : (e as {message?: string})?.message ?? String(e);
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -151,7 +152,8 @@ export function App() {
       const snap = await invoke<LauncherSnapshot>('install_or_update');
       setSnapshot(snap);
     } catch (e: unknown) {
-      setError(String(e));
+      const msg = typeof e === 'string' ? e : (e as {message?: string})?.message ?? String(e);
+      setError(msg);
     } finally {
       setBusy(false);
       setProgress(null);
@@ -238,10 +240,12 @@ export function App() {
   };
 
   const handleOpenLogs = async () => {
+    setError(null);
     try {
       await invoke('open_logs');
     } catch (e: unknown) {
-      setError(String(e));
+      const msg = typeof e === 'string' ? e : (e as {message?: string})?.message ?? String(e);
+      setError(msg);
     }
   };
 
@@ -271,7 +275,6 @@ export function App() {
       <section className="launcher-card" aria-labelledby="launcher-title">
         <img className="launcher-logo" src={voxteraLogo} alt="" />
         <p className="launcher-eyebrow">Launcher oficial</p>
-        <h1 id="launcher-title">Voxtera</h1>
 
         {/* Status line */}
         <div className="launcher-status">
