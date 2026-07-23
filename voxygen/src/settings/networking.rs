@@ -21,13 +21,13 @@ impl Default for NetworkingSettings {
     fn default() -> Self {
         Self {
             username: "".to_string(),
-            servers: vec!["server.voxtera.net".to_string()],
-            default_server: "server.voxtera.net".to_string(),
+            servers: vec!["54.147.28.131:14004".to_string()],
+            default_server: "54.147.28.131:14004".to_string(),
             trusted_auth_servers: ["https://gcfavlnisyhdwseuvzpd.supabase.co"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            use_srv: true,
+            use_srv: false,
             use_quic: false,
             validate_tls: true,
             player_physics_behavior: false,
