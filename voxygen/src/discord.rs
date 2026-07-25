@@ -5,7 +5,7 @@ use discord_sdk::{
     self as ds, activity,
     activity::{ActivityArgs, ActivityBuilder},
 };
-use i18n::{Localization, LocalizationHandle};
+use i18n::{LocalizationGuard, LocalizationHandle};
 use tokio::{
     sync::mpsc::{UnboundedSender, unbounded_channel},
     time::{MissedTickBehavior, interval},
@@ -57,7 +57,7 @@ impl ActivityUpdate {
     /// - For `MainMenu`, `CharacterSelection`, `JoinSingleplayer` and
     ///   `JoinServer(name)`: create a new activity and discard the previous one
     /// - For `NewLocation` and `LevelUp`: update the current activity
-    fn edit_activity(self, args: &mut ActivityArgs, i18n: &Localization) {
+    fn edit_activity(self, args: &mut ActivityArgs, i18n: &LocalizationGuard) {
         use ActivityUpdate::*;
 
         match self {
@@ -65,8 +65,8 @@ impl ActivityUpdate {
             MainMenu => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state(i18n.localize("discord-mainmenu-state"))
-                    .details(i18n.localize("discord-mainmenu-details"))
+                    .state(i18n.get_msg("discord-mainmenu-state").to_string())
+                    .details(i18n.get_msg("discord-mainmenu-details").to_string())
                     .assets(
                         activity::Assets::default().large(Self::LOGO_ASSET, Option::<&str>::None),
                     )
@@ -75,8 +75,8 @@ impl ActivityUpdate {
             CharacterSelection => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state(i18n.localize("discord-charselect-state"))
-                    .details(i18n.localize("discord-charselect-details"))
+                    .state(i18n.get_msg("discord-charselect-state").to_string())
+                    .details(i18n.get_msg("discord-charselect-details").to_string())
                     .assets(
                         activity::Assets::default()
                             .large(Self::CHARACTER_SCREEN_ASSET, Option::<&str>::None)
@@ -87,7 +87,7 @@ impl ActivityUpdate {
             JoinSingleplayer => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .details(i18n.localize("discord-singleplayer-details"))
+                    .details(i18n.get_msg("discord-singleplayer-details").to_string())
                     .assets(
                         activity::Assets::default()
                             .large(Self::ASSETS[9], Option::<&str>::None)
@@ -96,11 +96,16 @@ impl ActivityUpdate {
                     .into();
             },
             JoinServer(server_name) => {
-                let state = i18n.localize_with_args("discord-multiplayer-state", [("server", server_name.as_str())]);
+                let state = i18n.get_msg_ctx(
+                    "discord-multiplayer-state",
+                    &i18n::fluent_args! {
+                        "server" => &*server_name,
+                    },
+                );
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state(state)
-                    .details(i18n.localize("discord-multiplayer-details"))
+                    .state(state.to_string())
+                    .details(i18n.get_msg("discord-multiplayer-details").to_string())
                     .assets(
                         activity::Assets::default()
                             .large(Self::ASSETS[1], Option::<&str>::None)
@@ -114,22 +119,52 @@ impl ActivityUpdate {
                 };
 
                 let location = match site {
-                    Dungeon(Gnarling) => i18n.localize_with_args("discord-location-hunting-gnarlings", [("location", chunk_name.as_str())]),
-                    Dungeon(Adlet) => i18n.localize_with_args("discord-location-finding-yeti", [("location", chunk_name.as_str())]),
-                    Dungeon(SeaChapel) => i18n.localize_with_args("discord-location-gathering-sea-treasures", [("location", chunk_name.as_str())]),
-                    Dungeon(Terracotta) => i18n.localize_with_args("discord-location-exploring-ruins", [("location", chunk_name.as_str())]),
-                    Cave => i18n.localize("discord-location-in-cave"),
-                    Settlement(Default) => i18n.localize_with_args("discord-location-visiting", [("location", chunk_name.as_str())]),
-                    Settlement(CliffTown) => i18n.localize_with_args("discord-location-climbing-towers", [("location", chunk_name.as_str())]),
-                    Settlement(DesertCity) => i18n.localize_with_args("discord-location-hiding-from-sun", [("location", chunk_name.as_str())]),
-                    Settlement(SavannahTown) => i18n.localize_with_args("discord-location-shopping-at-market", [("location", chunk_name.as_str())]),
-                    Settlement(CoastalTown) => i18n.localize_with_args("discord-location-dipping-feet", [("location", chunk_name.as_str())]),
-                    _ => i18n.localize_with_args("discord-location-in", [("location", chunk_name.as_str())]),
+                    Dungeon(Gnarling) => i18n.get_msg_ctx(
+                        "discord-location-hunting-gnarlings",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Dungeon(Adlet) => i18n.get_msg_ctx(
+                        "discord-location-finding-yeti",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Dungeon(SeaChapel) => i18n.get_msg_ctx(
+                        "discord-location-gathering-sea-treasures",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Dungeon(Terracotta) => i18n.get_msg_ctx(
+                        "discord-location-exploring-ruins",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Cave => i18n.get_msg("discord-location-in-cave"),
+                    Settlement(Default) => i18n.get_msg_ctx(
+                        "discord-location-visiting",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Settlement(CliffTown) => i18n.get_msg_ctx(
+                        "discord-location-climbing-towers",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Settlement(DesertCity) => i18n.get_msg_ctx(
+                        "discord-location-hiding-from-sun",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Settlement(SavannahTown) => i18n.get_msg_ctx(
+                        "discord-location-shopping-at-market",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    Settlement(CoastalTown) => i18n.get_msg_ctx(
+                        "discord-location-dipping-feet",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
+                    _ => i18n.get_msg_ctx(
+                        "discord-location-in",
+                        &i18n::fluent_args! { "location" => &*chunk_name },
+                    ),
                 };
 
                 args.activity.as_mut().map(|a| {
                     a.assets.as_mut().map(|assets| {
-                        assets.large_text = Some(location);
+                        assets.large_text = Some(location.to_string());
                     })
                 });
             },
