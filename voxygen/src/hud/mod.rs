@@ -7,6 +7,7 @@ mod buttons;
 mod change_notification;
 mod chat;
 mod crafting;
+mod currency_display;
 mod diary;
 mod esc_menu;
 mod friends_panel;
@@ -324,6 +325,8 @@ widget_ids! {
         esc_menu,
         social_window,
         online_count,
+        // Premium currency (Cristais)
+        currency_display,
         admin_panel,
         quest_window,
         tutorial_window,
@@ -3957,6 +3960,29 @@ impl Hud {
             .font_size(self.fonts.cyri.scale(14))
             .color(TEXT_COLOR)
             .set(self.ids.online_count, ui_widgets);
+
+        // Premium currency (Cristais) — pill below the online count
+        let cristais_balance = client
+            .state()
+            .ecs()
+            .read_storage::<comp::PremiumCurrency>()
+            .get(info.viewpoint_entity)
+            .map(|c| c.cristais())
+            .unwrap_or(0);
+        if let Err(e) = currency_display::CurrencyDisplay::new(
+            cristais_balance,
+            &self.fonts.cyri.conrod_id,
+            self.fonts.cyri.scale(14),
+        )
+        .top_right_with_margins_on(
+            ui_widgets.window,
+            currency_display::TOP_MARGIN,
+            currency_display::RIGHT_MARGIN,
+        )
+        .set(self.ids.currency_display, ui_widgets)
+        {
+            tracing::warn!("failed to render currency_display: {:?}", e);
+        }
 
         // Admin panel — only visible to players with comp::Admin
         if self.show.admin_panel {

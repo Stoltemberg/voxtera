@@ -75,16 +75,17 @@ pub fn create_character(
     let map_marker = None;
 
     character_updater.create_character(entity, player_uuid, character_alias, PersistedComponents {
-        body,
-        hardcore: hardcore.then_some(common::comp::Hardcore),
-        stats,
-        skill_set,
-        inventory,
-        waypoint,
-        pets: Vec::new(),
-        active_abilities: common::comp::ActiveAbilities::default_limited(BASE_ABILITY_LIMIT),
-        map_marker,
-    });
+            body,
+            hardcore: hardcore.then_some(common::comp::Hardcore),
+            stats,
+            skill_set,
+            inventory,
+            waypoint,
+            pets: Vec::new(),
+            active_abilities: common::comp::ActiveAbilities::default_limited(BASE_ABILITY_LIMIT),
+            map_marker,
+            premium_currency: common::comp::PremiumCurrency::default(),
+        });
     Ok(())
 }
 

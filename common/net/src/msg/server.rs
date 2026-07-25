@@ -182,7 +182,9 @@ pub enum ServerGeneral {
     /// from an ingame state
     ExitInGameSuccess,
     InventoryUpdate(comp::Inventory, Vec<comp::InventoryUpdateEvent>),
-    Dialogue(Uid, rtsim::Dialogue<true>),
+        /// Premium currency balance update (Cristais)
+        CurrencyChange(u32, comp::CurrencyChangeReason),
+        Dialogue(Uid, rtsim::Dialogue<true>),
     /// NOTE: The client can infer that entity view distance will be at most the
     /// terrain view distance that we send here (and if lower it won't be
     /// modified). So we just need to send the terrain VD back to the client
@@ -398,7 +400,8 @@ impl ServerMsg {
                         | ServerGeneral::Disconnect(_)
                         | ServerGeneral::Notification(_)
                         | ServerGeneral::SetPlayerRole(_)
-                        | ServerGeneral::LodZoneUpdate { .. } => true,
+                        | ServerGeneral::LodZoneUpdate { .. }
+                        | ServerGeneral::CurrencyChange(_, _) => true,
                         ServerGeneral::PluginData(_) => true,
                     }
             },

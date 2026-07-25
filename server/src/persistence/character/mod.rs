@@ -141,39 +141,43 @@ pub fn load_character_data(
     let recipe_book_items = load_items(connection, character_containers.recipe_book_container_id)?;
 
     let mut stmt = connection.prepare_cached(
-        "
-        SELECT  c.character_id,
-                c.alias,
-                c.waypoint,
-                c.hardcore,
-                b.variant,
-                b.body_data
-        FROM    character c
-        JOIN    body b ON (c.character_id = b.body_id)
-        WHERE   c.player_uuid = ?1
-        AND     c.character_id = ?2",
-    )?;
+            "
+            SELECT  c.character_id,
+                    c.alias,
+                    c.waypoint,
+                    c.hardcore,
+                    c.cristais,
+                    b.variant,
+                    b.body_data
+            FROM    character c
+            JOIN    body b ON (c.character_id = b.body_id)
+            WHERE   c.player_uuid = ?1
+            AND     c.character_id = ?2",
+        )?;
 
-    let (body_data, character_data) = stmt.query_row(
-        [requesting_player_uuid.clone(), char_id.0.to_string()],
-        |row| {
-            let character_data = Character {
-                character_id: row.get(0)?,
-                player_uuid: requesting_player_uuid,
-                alias: row.get(1)?,
-                waypoint: row.get(2)?,
-                hardcore: row.get(3)?,
-            };
+    let (body_data, character_data, cristais_val) = stmt.query_row(
+                            [requesting_player_uuid.clone(), char_id.0.to_string()],
+                            |row| {
+                                let character_data = Character {
+                                    character_id: row.get(0)?,
+                                    player_uuid: requesting_player_uuid,
+                                    alias: row.get(1)?,
+                                    waypoint: row.get(2)?,
+                                    hardcore: row.get(3)?,
+                                    cristais: row.get(4)?,
+                                };
 
-            let body_data = Body {
-                body_id: row.get(0)?,
-                variant: row.get(4)?,
-                body_data: row.get(5)?,
-            };
+                                let body_data = Body {
+                                    body_id: row.get(0)?,
+                                    variant: row.get(5)?,
+                                    body_data: row.get(6)?,
+                                };
 
-            Ok((body_data, character_data))
-        },
-    )?;
+                                let cristais_val: i64 = row.get(4)?;
+
+                                Ok((body_data, character_data, cristais_val))
+                            },
+                        )?;
 
     let (char_waypoint, char_map_marker) = match character_data
         .waypoint
@@ -290,29 +294,30 @@ pub fn load_character_data(
     let body = convert_body_from_database(&body_data.variant, &body_data.body_data)?;
     let hardcore = convert_hardcore_from_database(character_data.hardcore)?;
     Ok((
-        PersistedComponents {
-            body,
-            hardcore,
-            stats: convert_stats_from_database(character_data.alias, body),
-            skill_set,
-            inventory: convert_inventory_from_database_items(
-                character_containers.inventory_container_id,
-                &inventory_items,
-                character_containers.loadout_container_id,
-                &loadout_items,
-                character_containers.overflow_items_container_id,
-                &overflow_items_items,
-                &recipe_book_items,
-            )?,
-            waypoint: char_waypoint,
-            pets,
-            active_abilities: convert_active_abilities_from_database(&ability_set_data),
-            map_marker: char_map_marker,
-        },
-        UpdateCharacterMetadata {
-            skill_set_persistence_load_error,
-        },
-    ))
+            PersistedComponents {
+                body,
+                hardcore,
+                stats: convert_stats_from_database(character_data.alias, body),
+                skill_set,
+                inventory: convert_inventory_from_database_items(
+                    character_containers.inventory_container_id,
+                    &inventory_items,
+                    character_containers.loadout_container_id,
+                    &loadout_items,
+                    character_containers.overflow_items_container_id,
+                    &overflow_items_items,
+                    &recipe_book_items,
+                )?,
+                waypoint: char_waypoint,
+                pets,
+                active_abilities: convert_active_abilities_from_database(&ability_set_data),
+                map_marker: char_map_marker,
+                premium_currency: common::comp::PremiumCurrency::new(cristais_val as u32),
+            },
+            UpdateCharacterMetadata {
+                skill_set_persistence_load_error,
+            },
+        ))
 }
 
 /// Loads a list of characters belonging to the player. This data is a small
@@ -328,25 +333,27 @@ pub fn load_character_list(player_uuid_: &str, connection: &Connection) -> Chara
             SELECT  character_id,
                     alias,
                     waypoint,
-                    hardcore
+                    hardcore,
+                    cristais
             FROM    character
             WHERE   player_uuid = ?1
             ORDER BY character_id",
     )?;
 
     let characters = stmt
-        .query_map([player_uuid_], |row| {
-            Ok(Character {
-                character_id: row.get(0)?,
-                alias: row.get(1)?,
-                player_uuid: player_uuid_.to_owned(),
-                waypoint: row.get(2)?,
-                hardcore: row.get(3)?,
-            })
-        })?
-        .map(|x| x.unwrap())
-        .collect::<Vec<Character>>();
-    drop(stmt);
+            .query_map([player_uuid_], |row| {
+                Ok(Character {
+                    character_id: row.get(0)?,
+                    alias: row.get(1)?,
+                    player_uuid: player_uuid_.to_owned(),
+                    waypoint: row.get(2)?,
+                    hardcore: row.get(3)?,
+                    cristais: row.get(4)?,
+                })
+            })?
+            .map(|x| x.unwrap())
+            .collect::<Vec<Character>>();
+        drop(stmt);
 
     characters
         .iter()
@@ -416,16 +423,17 @@ pub fn create_character(
     check_character_limit(uuid, transaction)?;
 
     let PersistedComponents {
-        body,
-        hardcore,
-        stats: _,
-        skill_set,
-        inventory,
-        waypoint,
-        pets: _,
-        active_abilities,
-        map_marker,
-    } = persisted_components;
+            body,
+            hardcore,
+            stats: _,
+            skill_set,
+            inventory,
+            waypoint,
+            pets: _,
+            active_abilities,
+            map_marker,
+            premium_currency,
+        } = persisted_components;
 
     // Fetch new entity IDs for character, inventory, loadout, overflow items, and
     // recipe book
@@ -521,22 +529,24 @@ pub fn create_character(
     drop(stmt);
 
     let mut stmt = transaction.prepare_cached(
-        "
-        INSERT INTO character (character_id,
-                               player_uuid,
-                               alias,
-                               waypoint,
-                               hardcore)
-        VALUES (?1, ?2, ?3, ?4, ?5)",
-    )?;
+            "
+            INSERT INTO character (character_id,
+                                   player_uuid,
+                                   alias,
+                                   waypoint,
+                                   hardcore,
+                                   cristais)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        )?;
 
-    stmt.execute([
-        &character_id as &dyn ToSql,
-        &uuid,
-        &character_alias,
-        &convert_waypoint_to_database_json(waypoint, map_marker),
-        &convert_hardcore_to_database(hardcore),
-    ])?;
+        stmt.execute([
+            &character_id as &dyn ToSql,
+            &uuid,
+            &character_alias,
+            &convert_waypoint_to_database_json(waypoint, map_marker),
+            &convert_hardcore_to_database(hardcore),
+            &premium_currency.cristais(),
+        ])?;
     drop(stmt);
 
     let db_skill_groups =

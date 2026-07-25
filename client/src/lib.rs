@@ -745,6 +745,7 @@ impl Client {
             }
             // Client-only components
             state.ecs_mut().register::<comp::Last<CharacterState>>();
+            state.ecs_mut().register::<comp::PremiumCurrency>();
             let entity = state.ecs_mut().apply_entity_package(entity_package);
             *state.ecs_mut().write_resource() = time_of_day;
             *state.ecs_mut().write_resource() = PlayerEntity(Some(entity));
@@ -3085,6 +3086,25 @@ impl Client {
                 self.update_available_recipes();
 
                 frontend_events.push(Event::InventoryUpdated(events));
+            },
+            ServerGeneral::CurrencyChange(new_balance, reason) => {
+                let entity = self.entity();
+                if let Some(currency) = self
+                    .state
+                    .ecs_mut()
+                    .write_storage::<common::comp::PremiumCurrency>()
+                    .get_mut(entity)
+                {
+                    currency.set_balance(new_balance);
+                } else {
+                    // First time receiving this — insert the component
+                    let _ = self
+                        .state
+                        .ecs_mut()
+                        .write_storage()
+                        .insert(entity, common::comp::PremiumCurrency::new(new_balance));
+                }
+                // HUD will read the balance directly from the component each frame
             },
             ServerGeneral::Dialogue(sender, dialogue) => {
                 frontend_events.push(Event::Dialogue(sender, dialogue));

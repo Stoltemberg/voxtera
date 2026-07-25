@@ -692,16 +692,17 @@ impl StateExt for State {
         components: PersistedComponents,
     ) -> Result<(), String> {
         let PersistedComponents {
-            body,
-            hardcore,
-            stats,
-            skill_set,
-            inventory,
-            waypoint,
-            pets,
-            active_abilities,
-            map_marker,
-        } = components;
+                                body,
+                                hardcore,
+                                stats,
+                                skill_set,
+                                inventory,
+                                waypoint,
+                                pets,
+                                active_abilities,
+                                map_marker,
+                                premium_currency,
+                            } = components;
 
         if let Some(player_uid) = self.read_component_copied::<Uid>(entity) {
             let result =
@@ -770,6 +771,9 @@ impl StateExt for State {
             if let Some(map_marker) = map_marker {
                 self.write_component_ignore_entity_dead(entity, map_marker);
             }
+
+            // Persist premium currency wallet on the player entity.
+            self.write_component_ignore_entity_dead(entity, premium_currency);
 
             let player_pos = self.ecs().read_storage::<comp::Pos>().get(entity).copied();
             if let Some(player_pos) = player_pos {

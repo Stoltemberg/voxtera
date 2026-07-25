@@ -26,6 +26,7 @@ pub mod login_provider;
 pub mod metrics;
 pub mod supabase_db;
 pub mod starter_kits;
+pub mod currency;
 pub mod persistence;
 mod pet;
 pub mod presence;
@@ -485,6 +486,7 @@ impl Server {
         state.ecs_mut().register::<RepositionToFreeSpace>();
         state.ecs_mut().register::<common::rtsim::ActorId>();
         state.ecs_mut().register::<comp::SpawnProtection>();
+        state.ecs_mut().register::<comp::PremiumCurrency>();
 
         // Load banned words list
         let banned_words = settings.moderation.load_banned_words(data_dir);
@@ -1130,6 +1132,7 @@ impl Server {
                                         pets,
                                         active_abilities,
                                         map_marker,
+                                        premium_currency,
                                     } = character_data;
                                     let character_data = (
                                         body,
@@ -1141,6 +1144,7 @@ impl Server {
                                         pets,
                                         active_abilities,
                                         map_marker,
+                                        premium_currency,
                                     );
                                     // TODO: Does this need to be a server event? E.g. we could
                                     // just handle it here.

@@ -389,6 +389,7 @@ pub enum ServerChatCommand {
     Dummy,
     Explosion,
     Faction,
+    GiveCrystals,
     GiveItem,
     Gizmos,
     GizmosRange,
@@ -666,6 +667,13 @@ impl ServerChatCommand {
                 vec![Message(Optional)],
                 Content::localized("command-faction-desc"),
                 None,
+            ),
+            ServerChatCommand::GiveCrystals => cmd(
+                vec![
+                    Integer("amount", 1, Required),
+                ],
+                Content::localized("command-give_crystals-desc"),
+                Some(Admin),
             ),
             ServerChatCommand::GiveItem => cmd(
                 vec![
@@ -1190,6 +1198,7 @@ impl ServerChatCommand {
             ServerChatCommand::Dummy => "dummy",
             ServerChatCommand::Explosion => "explosion",
             ServerChatCommand::Faction => "faction",
+            ServerChatCommand::GiveCrystals => "give_crystals",
             ServerChatCommand::GiveItem => "give_item",
             ServerChatCommand::Gizmos => "gizmos",
             ServerChatCommand::GizmosRange => "gizmos_range",

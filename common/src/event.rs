@@ -239,6 +239,7 @@ pub struct UpdateCharacterDataEvent {
         Vec<(comp::Pet, comp::Body, comp::Stats)>,
         comp::ActiveAbilities,
         Option<comp::MapMarker>,
+        comp::PremiumCurrency,
     ),
     pub metadata: UpdateCharacterMetadata,
 }

@@ -17,6 +17,8 @@ pub use uuid;
 pub mod combat;
 pub mod comp;
 pub mod consts;
+pub mod cosmetic;
+pub mod currency;
 pub mod resources;
 pub mod shared_server_config;
 pub mod uid;

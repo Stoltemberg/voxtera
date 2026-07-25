@@ -169,6 +169,7 @@ fn do_command(
         ServerChatCommand::Dummy => handle_spawn_training_dummy,
         ServerChatCommand::Explosion => handle_explosion,
         ServerChatCommand::Faction => handle_faction,
+        ServerChatCommand::GiveCrystals => handle_give_crystals,
         ServerChatCommand::GiveItem => handle_give_item,
         ServerChatCommand::Gizmos => handle_gizmos,
         ServerChatCommand::GizmosRange => handle_gizmos_range,
@@ -622,6 +623,71 @@ fn handle_drop_all(
     }
 
     Ok(())
+}
+
+fn handle_give_crystals(
+    server: &mut Server,
+    client: EcsEntity,
+    target: EcsEntity,
+    args: Vec<String>,
+    action: &ServerChatCommand,
+) -> CmdResult<()> {
+    if let Some(amount) = parse_cmd_args!(args, u32) {
+        let mut premium_currency = server
+            .state
+            .ecs()
+            .write_storage::<common::comp::PremiumCurrency>();
+
+        if let Some(mut currency) = premium_currency.get_mut(target) {
+                    let new = currency.grant(amount);
+                    drop(premium_currency);
+
+                    // Send CurrencyChanged to target so their HUD updates
+                    server.notify_client(
+                        target,
+                        ServerGeneral::CurrencyChange(
+                            new,
+                            common::comp::CurrencyChangeReason::AdminGrant {
+                                admin_uuid: server
+                                    .state
+                                    .ecs()
+                                    .read_storage::<common::comp::Player>()
+                                    .get(client)
+                                    .and_then(|p| server.state.ecs().read_storage::<common::uid::Uid>()
+                                        .get(client)
+                                        .map(|u| u.0.to_string()))
+                                    .unwrap_or_default(),
+                            },
+                        ),
+                    );
+
+                    let msg = ServerGeneral::server_msg(
+                ChatType::CommandInfo,
+                Content::localized_with_args("command-give_crystals-success", [
+                    ("amount", LocalizationArg::from(amount as u64)),
+                    ("total", LocalizationArg::from(new as u64)),
+                ]),
+            );
+            server.notify_client(client, msg);
+
+            // Also notify the target if different from client
+            if client != target {
+                let target_msg = ServerGeneral::server_msg(
+                    ChatType::CommandInfo,
+                    Content::localized_with_args("command-give_crystals-received", [
+                        ("amount", LocalizationArg::from(amount as u64)),
+                        ("total", LocalizationArg::from(new as u64)),
+                    ]),
+                );
+                server.notify_client(target, target_msg);
+            }
+        } else {
+            return Err(Content::localized("command-give_crystals-no-wallet"));
+        }
+        Ok(())
+    } else {
+        Err(action.help_content())
+    }
 }
 
 fn handle_give_item(

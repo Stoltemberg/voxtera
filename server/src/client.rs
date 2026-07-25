@@ -227,7 +227,8 @@ impl Client {
                     | ServerGeneral::Disconnect(_)
                     | ServerGeneral::Notification(_)
                     | ServerGeneral::SetPlayerRole(_)
-                    | ServerGeneral::PluginData(_) => {
+                    | ServerGeneral::PluginData(_)
+                    | ServerGeneral::CurrencyChange(_, _) => {
                         PreparedMsg::new(3, &g, &self.general_stream_params)
                     },
                 }

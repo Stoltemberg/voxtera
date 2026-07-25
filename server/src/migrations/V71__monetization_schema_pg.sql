@@ -1,0 +1,1 @@
+-- V71__monetization_schema_pg.sql disabled in this build (SQLite only deployment).
