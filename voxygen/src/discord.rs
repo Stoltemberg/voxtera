@@ -271,7 +271,7 @@ impl Discord {
                         },
                     }
                 }
-            });
+            }
         });
 
         Self::Active {
