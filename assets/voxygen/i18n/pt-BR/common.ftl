@@ -100,3 +100,16 @@ common-sprite-crate = Caixote
 common-sprite-grave = Túmulo
 common-sprite-mud = Barro
 common-tool-shovel = Pá
+common-tool-throwable = Arremessável
+
+## Item Kinds
+common-kind-recipegroup = Receitas
+common-kind-quest = Missão
+common-kind-lantern = Lanterna
+
+hud-diary-sections-skill_trees-title = Árvores de Habilidades
+hud-diary-sections-abilities-title = Habilidades
+hud-diary-sections-character-title = Personagem
+hud-diary-sections-recipes-title = Receitas
+hud-battle-mode = Modo de Batalha
+hud-waypoint = Ponto de Referência

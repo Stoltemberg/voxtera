@@ -31,3 +31,20 @@ noun-creature = alguma criatura
 noun-terracotta_demolisher = um demolidor de terracota
 noun-ogre-female = uma ogra
 noun-werewolf = um lobisomem
+noun-strigoi = um strigoi
+noun-executioner = um carrasco
+noun-gigas_fire = um giga de fogo
+
+# Roles
+noun-role-farmer = um fazendeiro
+noun-role-hunter = um caçador
+noun-role-merchant = um comerciante
+noun-role-guard = um guarda
+noun-role-adventurer = um aventureiro
+noun-role-blacksmith = um ferreiro
+noun-role-chef = um cozinheiro
+noun-role-alchemist = um alquimista
+noun-role-pirate = um pirata
+noun-role-cultist = um cultista
+noun-role-herbalist = um herbalista
+noun-role-captain = um capitão
