@@ -2,12 +2,15 @@
 ## Veloren
 *.log
 *.rar
+*.zip
 assets/tweak/
 maps
 notes.md
 notes.txt
 run.sh
 screenshots
+nul
+build_voxtera.bat
 server_settings.ron
 settings.ron
 temp

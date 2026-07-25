@@ -65,8 +65,8 @@ impl ActivityUpdate {
             MainMenu => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state(i18n.get_msg("discord-mainmenu-state").to_string())
-                    .details(i18n.get_msg("discord-mainmenu-details").to_string())
+                    .state(i18n.get_msg("discord-activity-in-main-menu").to_string())
+                    .details(i18n.get_msg("discord-activity-idle").to_string())
                     .assets(
                         activity::Assets::default().large(Self::LOGO_ASSET, Option::<&str>::None),
                     )
@@ -75,8 +75,8 @@ impl ActivityUpdate {
             CharacterSelection => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state(i18n.get_msg("discord-charselect-state").to_string())
-                    .details(i18n.get_msg("discord-charselect-details").to_string())
+                    .state(i18n.get_msg("discord-activity-in-character-selection").to_string())
+                    .details(i18n.get_msg("discord-activity-idle").to_string())
                     .assets(
                         activity::Assets::default()
                             .large(Self::CHARACTER_SCREEN_ASSET, Option::<&str>::None)
@@ -87,7 +87,7 @@ impl ActivityUpdate {
             JoinSingleplayer => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .details(i18n.get_msg("discord-singleplayer-details").to_string())
+                    .details(i18n.get_msg("discord-activity-playing-singleplayer").to_string())
                     .assets(
                         activity::Assets::default()
                             .large(Self::ASSETS[9], Option::<&str>::None)
@@ -97,15 +97,15 @@ impl ActivityUpdate {
             },
             JoinServer(server_name) => {
                 let state = i18n.get_msg_ctx(
-                    "discord-multiplayer-state",
+                    "discord-activity-on-server",
                     &i18n::fluent_args! {
-                        "server" => &*server_name,
+                        "server_name" => &*server_name,
                     },
                 );
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
                     .state(state.to_string())
-                    .details(i18n.get_msg("discord-multiplayer-details").to_string())
+                    .details(i18n.get_msg("discord-activity-playing-multiplayer").to_string())
                     .assets(
                         activity::Assets::default()
                             .large(Self::ASSETS[1], Option::<&str>::None)
@@ -157,7 +157,7 @@ impl ActivityUpdate {
                         &i18n::fluent_args! { "location" => &*chunk_name },
                     ),
                     _ => i18n.get_msg_ctx(
-                        "discord-location-in",
+                        "discord-activity-in-location",
                         &i18n::fluent_args! { "location" => &*chunk_name },
                     ),
                 };
