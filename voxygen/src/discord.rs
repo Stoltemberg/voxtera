@@ -5,6 +5,7 @@ use discord_sdk::{
     self as ds, activity,
     activity::{ActivityArgs, ActivityBuilder},
 };
+use i18n::{Localization, LocalizationHandle};
 use tokio::{
     sync::mpsc::{UnboundedSender, unbounded_channel},
     time::{MissedTickBehavior, interval},
@@ -43,8 +44,8 @@ impl ActivityUpdate {
     ///
     /// TODO: randomize images? use them according to the current biome?
     const ASSETS: [&'static str; 15] = [
-        "bg_main", "bg_1", "bg_2", "bg_3", "bg_4", "bg_5", "bg_6", "bg_7", "bg_8", "bg_9", "bg_10",
-        "bg_11", "bg_12", "bg_13", "bg_14",
+        "bg_main", "bg_1", "bg_2", "bg_3", "bg_4", "bg_5", "bg_6", "bg_7", "bg_8", "bg_9",
+        "bg_10", "bg_11", "bg_12", "bg_13", "bg_14",
     ];
     /// Rich Presence character screen asset key
     const CHARACTER_SCREEN_ASSET: &'static str = "character_screen";
@@ -56,7 +57,7 @@ impl ActivityUpdate {
     /// - For `MainMenu`, `CharacterSelection`, `JoinSingleplayer` and
     ///   `JoinServer(name)`: create a new activity and discard the previous one
     /// - For `NewLocation` and `LevelUp`: update the current activity
-    fn edit_activity(self, args: &mut ActivityArgs) {
+    fn edit_activity(self, args: &mut ActivityArgs, i18n: &Localization) {
         use ActivityUpdate::*;
 
         match self {
@@ -64,8 +65,8 @@ impl ActivityUpdate {
             MainMenu => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state("Idle")
-                    .details("In Main Menu")
+                    .state(i18n.localize("discord-mainmenu-state"))
+                    .details(i18n.localize("discord-mainmenu-details"))
                     .assets(
                         activity::Assets::default().large(Self::LOGO_ASSET, Option::<&str>::None),
                     )
@@ -74,8 +75,8 @@ impl ActivityUpdate {
             CharacterSelection => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state("Idle")
-                    .details("In Character Selection")
+                    .state(i18n.localize("discord-charselect-state"))
+                    .details(i18n.localize("discord-charselect-details"))
                     .assets(
                         activity::Assets::default()
                             .large(Self::CHARACTER_SCREEN_ASSET, Option::<&str>::None)
@@ -86,7 +87,7 @@ impl ActivityUpdate {
             JoinSingleplayer => {
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .details("Playing Singleplayer")
+                    .details(i18n.localize("discord-singleplayer-details"))
                     .assets(
                         activity::Assets::default()
                             .large(Self::ASSETS[9], Option::<&str>::None)
@@ -95,10 +96,11 @@ impl ActivityUpdate {
                     .into();
             },
             JoinServer(server_name) => {
+                let state = i18n.localize_with_args("discord-multiplayer-state", [("server", server_name.as_str())]);
                 *args = ActivityBuilder::default()
                     .start_timestamp(SystemTime::now())
-                    .state(format!("On {server_name}"))
-                    .details("Playing Multiplayer")
+                    .state(state)
+                    .details(i18n.localize("discord-multiplayer-details"))
                     .assets(
                         activity::Assets::default()
                             .large(Self::ASSETS[1], Option::<&str>::None)
@@ -112,19 +114,17 @@ impl ActivityUpdate {
                 };
 
                 let location = match site {
-                    Dungeon(Gnarling) => format!("Hunting Gnarlings in {chunk_name}"),
-                    Dungeon(Adlet) => format!("Finding the Yeti in {chunk_name}"),
-                    Dungeon(SeaChapel) => format!("Gathering sea treasures in {chunk_name}"),
-                    Dungeon(Terracotta) => format!("Exploring ruins in {chunk_name}"),
-                    Cave => "In a Cave".to_string(),
-                    Settlement(Default) => format!("Visiting {chunk_name}"),
-                    Settlement(CliffTown) => format!("Climbing the towers of {chunk_name}"),
-                    Settlement(DesertCity) => format!("Hiding from the sun in {chunk_name}"),
-                    Settlement(SavannahTown) => format!("Shop at the market down in {chunk_name}"),
-                    Settlement(CoastalTown) => {
-                        format!("Dip your feet in the water in {chunk_name}")
-                    },
-                    _ => format!("In {chunk_name}"),
+                    Dungeon(Gnarling) => i18n.localize_with_args("discord-location-hunting-gnarlings", [("location", chunk_name.as_str())]),
+                    Dungeon(Adlet) => i18n.localize_with_args("discord-location-finding-yeti", [("location", chunk_name.as_str())]),
+                    Dungeon(SeaChapel) => i18n.localize_with_args("discord-location-gathering-sea-treasures", [("location", chunk_name.as_str())]),
+                    Dungeon(Terracotta) => i18n.localize_with_args("discord-location-exploring-ruins", [("location", chunk_name.as_str())]),
+                    Cave => i18n.localize("discord-location-in-cave"),
+                    Settlement(Default) => i18n.localize_with_args("discord-location-visiting", [("location", chunk_name.as_str())]),
+                    Settlement(CliffTown) => i18n.localize_with_args("discord-location-climbing-towers", [("location", chunk_name.as_str())]),
+                    Settlement(DesertCity) => i18n.localize_with_args("discord-location-hiding-from-sun", [("location", chunk_name.as_str())]),
+                    Settlement(SavannahTown) => i18n.localize_with_args("discord-location-shopping-at-market", [("location", chunk_name.as_str())]),
+                    Settlement(CoastalTown) => i18n.localize_with_args("discord-location-dipping-feet", [("location", chunk_name.as_str())]),
+                    _ => i18n.localize_with_args("discord-location-in", [("location", chunk_name.as_str())]),
                 };
 
                 args.activity.as_mut().map(|a| {
@@ -160,7 +160,7 @@ impl Discord {
     ///
     /// The [`update`](Discord::update) method can be used on the returned
     /// struct to update the Discord activity via a channel command
-    pub fn start(rt: &tokio::runtime::Runtime) -> Self {
+    pub fn start(rt: &tokio::runtime::Runtime, i18n: LocalizationHandle) -> Self {
         let (sender, mut receiver) = unbounded_channel::<ActivityUpdate>();
 
         rt.spawn(async move {
@@ -229,12 +229,14 @@ impl Discord {
                             return;
                         },
                         Some(update) => {
-                            update.edit_activity(&mut args);
+                            // Get the current localization snapshot
+                            let i18n = i18n.read();
+                            update.edit_activity(&mut args, &i18n);
                             has_changed = true;
                         },
                     }
                 }
-            }
+            });
         });
 
         Self::Active {
@@ -248,7 +250,7 @@ impl Discord {
     #[inline]
     fn update(&mut self, update: ActivityUpdate) {
         if let Self::Active { channel, .. } = self {
-            // On error, turn itself into inactive to avoid sending unecessary updates
+            // On error, turn itself into inactive to avoid sending unnecessary updates
             if channel.send(update).is_err() {
                 *self = Self::Inactive;
             }

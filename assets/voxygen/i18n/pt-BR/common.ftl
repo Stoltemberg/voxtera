@@ -113,3 +113,22 @@ hud-diary-sections-character-title = Personagem
 hud-diary-sections-recipes-title = Receitas
 hud-battle-mode = Modo de Batalha
 hud-waypoint = Ponto de Referência
+
+## Discord Rich Presence
+discord-activity-idle = Ocioso
+discord-activity-in-main-menu = No Menu Principal
+discord-activity-in-character-selection = Na Seleção de Personagem
+discord-activity-playing-singleplayer = Jogando Singleplayer
+discord-activity-playing-multiplayer = Jogando Multiplayer
+discord-activity-on-server = Em { $server_name }
+discord-activity-in-location = Em { $location }
+discord-location-hunting-gnarlings = Caçando Gnarlings em { $location }
+discord-location-finding-yeti = Procurando o Yeti em { $location }
+discord-location-gathering-sea-treasures = Coletando tesouros do mar em { $location }
+discord-location-exploring-ruins = Explorando ruínas em { $location }
+discord-location-in-cave = Em uma Caverna
+discord-location-visiting = Visitando { $location }
+discord-location-climbing-towers = Escalando as torres de { $location }
+discord-location-hiding-from-sun = Se escondendo do sol em { $location }
+discord-location-shopping-at-market = Comprando no mercado em { $location }
+discord-location-dipping-feet = Molhar os pés na água em { $location }

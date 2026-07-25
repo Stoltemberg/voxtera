@@ -220,11 +220,11 @@ fn main() {
     let egui_state = EguiState::new(&window);
 
     #[cfg(feature = "discord")]
-    let discord = if settings.networking.enable_discord_integration {
-        veloren_voxygen::discord::Discord::start(&tokio_runtime)
-    } else {
-        veloren_voxygen::discord::Discord::Inactive
-    };
+        let discord = if settings.networking.enable_discord_integration {
+            veloren_voxygen::discord::Discord::start(&tokio_runtime, i18n.clone())
+        } else {
+            veloren_voxygen::discord::Discord::Inactive
+        };
 
     let global_state = GlobalState {
         userdata_dir,
