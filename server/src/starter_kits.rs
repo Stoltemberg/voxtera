@@ -16,7 +16,7 @@ pub fn give_starter_items(inventory: &mut Inventory) {
         match Item::new_from_asset(path) {
             Ok(item) => {
                 for _ in 0..amount {
-                    inventory.push(item.clone());
+                    let _ = inventory.push(item.clone());
                 }
                 info!(path, amount, "Gave starter item");
             },

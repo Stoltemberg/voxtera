@@ -5,7 +5,7 @@
 //! Indicators fade out over 500 ms and multiple hits stack independently.
 
 use conrod_core::{
-    Color, Colorable, Positionable, Sizeable, Widget, WidgetCommon,
+    Color, Colorable, Positionable, Widget, WidgetCommon,
     widget::{self, Rectangle},
     widget_ids,
 };

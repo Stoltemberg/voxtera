@@ -1277,7 +1277,7 @@ impl Server {
         // Voxtera: tick spawn protection timers down.
         {
             let mut spawn_protection = self.state.ecs().write_storage::<comp::SpawnProtection>();
-            for (_, mut sp) in (&self.state.ecs().entities(), &mut spawn_protection).join() {
+            for (_, sp) in (&self.state.ecs().entities(), &mut spawn_protection).join() {
                 if let Some(new_remaining) = sp.remaining.checked_sub(dt) {
                     sp.remaining = new_remaining;
                 } else {
