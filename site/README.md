@@ -14,3 +14,11 @@ Run these from the `site/` directory:
 The desktop download page is available at `/download`; the primary homepage CTA links there.
 
 Project-owned image copies are stored in `public/images/`.
+
+## Production
+
+The live site is available at https://site-gilt-psi-44.vercel.app.
+
+The `/download` route resolves the current `VoxteraLauncher.exe` from GitHub
+releases. When no matching executable is published, it safely redirects to the
+release history page instead.
