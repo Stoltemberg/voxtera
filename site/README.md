@@ -4,8 +4,13 @@ An independently buildable Vite and React site for the Voxtera download experien
 
 ## Commands
 
-- `npm run dev` starts the local development server.
-- `npm run build` creates a production build in `dist/`.
+Run these from the `site/` directory:
+
+- `npm install` installs the site dependencies.
+- `npm run dev -- --host 127.0.0.1` starts the local development server at the URL printed by Vite (normally `http://127.0.0.1:5173`).
+- `npm run build` type-checks the project and creates a production build in `dist/`.
 - `npm test` runs the Vitest suite.
+
+The desktop download page is available at `/download`; the primary homepage CTA links there.
 
 Project-owned image copies are stored in `public/images/`.
