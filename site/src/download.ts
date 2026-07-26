@@ -1,1 +1,1 @@
-export const DOWNLOAD_URL = "/download";
+export const DOWNLOAD_URL = "/downloads/VoxteraLauncher.exe";

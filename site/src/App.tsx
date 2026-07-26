@@ -115,7 +115,7 @@ export function App() {
         <div className="page-width footer-grid">
           <div className="footer-brand"><a href="#top">VOXTERA</a><p>Um mundo aberto, bloco por bloco.</p></div>
           <div><h3>Explore</h3><a href="#game">O jogo</a><a href="#start">Começar</a></div>
-          <div><h3>Comunidade</h3><a href="https://github.com/Stoltemberg/voxtera">GitHub</a><a href="https://github.com/Stoltemberg/voxtera/releases">Histórico de lançamentos</a></div>
+          <div><h3>Voxtera</h3><a href="#game">O jogo</a><a href="#start">Como começar</a></div>
           <div><h3>Download</h3><a href={DOWNLOAD_URL}>Baixar launcher</a><span>Windows 10/11</span></div>
         </div>
       </footer>

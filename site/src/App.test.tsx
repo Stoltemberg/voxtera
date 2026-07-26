@@ -13,7 +13,12 @@ describe("App", () => {
 
     expect(downloadActions).toHaveLength(2);
     downloadActions.forEach((action) => {
-      expect(action).toHaveAttribute("href", "/download");
+      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher.exe");
     });
+  });
+
+  it("does not expose GitHub links", () => {
+    render(<App />);
+    expect(screen.queryByRole("link", { name: /github/i })).not.toBeInTheDocument();
   });
 });

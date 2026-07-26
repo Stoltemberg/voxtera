@@ -1,5 +1,4 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "rewrites": [{ "source": "/download", "destination": "/api/download" }]
+  "outputDirectory": "dist"
 }
