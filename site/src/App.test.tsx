@@ -7,8 +7,13 @@ describe("App", () => {
   it("exposes the primary executable download action", () => {
     render(<App />);
 
-    expect(screen.getByRole("link", {
+    const downloadActions = screen.getAllByRole("link", {
       name: "Baixar launcher para Windows (.exe)",
-    })).toHaveAttribute("href", "/download");
+    });
+
+    expect(downloadActions).toHaveLength(2);
+    downloadActions.forEach((action) => {
+      expect(action).toHaveAttribute("href", "/download");
+    });
   });
 });
