@@ -48,3 +48,18 @@ The `^6.6.3` range resolves to `@testing-library/jest-dom@6.10.0`. Its lockfile 
 | `pnpm run build` | Passed: TypeScript compilation and Vite production build. |
 
 The forced `pnpm install --force --no-frozen-lockfile` completed successfully after the pin and repaired the missing-package-file state from the first implementation pass.
+
+---
+
+## Fix round 2 — illustrated start and centered closing CTA
+
+- Replaced the Unicode start markers with three framed, project-owned gameplay illustrations and preserved the centered three-column sequence.
+- Centered the closing image-backed download composition around its eyebrow, headline, and unchanged launcher CTA.
+- Added a layered CSS wood-grain texture to the existing multi-column, page-relevant footer links.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| `pnpm test -- App.test.tsx release.test.ts` | Passed: 2 files, 4 tests. |
+| `pnpm run build` | Passed: TypeScript compilation and Vite production build. |

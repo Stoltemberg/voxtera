@@ -28,9 +28,9 @@ const features = [
 ];
 
 const steps = [
-  ["↓", "Baixe o launcher", "Um único download para começar sua próxima aventura."],
-  ["▣", "Instale em poucos cliques", "O launcher cuida da instalação e das atualizações para você."],
-  ["✦", "Jogue", "Crie seu mundo e dê o primeiro passo quando estiver pronto."],
+  ["/images/forest-dawn.jpg", "Floresta de Voxtera ao nascer do sol", "Baixe o launcher", "Um único download para começar sua próxima aventura."],
+  ["/images/mountain-valley.jpg", "Vale voxel pronto para explorar", "Instale em poucos cliques", "O launcher cuida da instalação e das atualizações para você."],
+  ["/images/ruins-adventure.jpg", "Aventureiros em uma ruína de Voxtera", "Jogue", "Crie seu mundo e dê o primeiro passo quando estiver pronto."],
 ];
 
 export function App() {
@@ -87,10 +87,10 @@ export function App() {
             <p>Sem complicação: o launcher prepara o caminho para você entrar no jogo.</p>
           </div>
           <ol className="steps">
-            {steps.map(([icon, title, text], index) => (
+            {steps.map(([image, alt, title, text], index) => (
               <li key={title}>
                 <span className="step-number">0{index + 1}</span>
-                <span className="step-icon" aria-hidden="true">{icon}</span>
+                <div className="step-illustration"><img src={image} alt={alt} /></div>
                 <h3>{title}</h3>
                 <p>{text}</p>
               </li>
