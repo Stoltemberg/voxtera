@@ -28,6 +28,19 @@ describe("App", () => {
     });
   });
 
+  it("renders the approved hero artwork with a direct launcher download", () => {
+    render(<App />);
+
+    expect(screen.getByAltText("Paisagem ensolarada de Voxtera com aventureiro e vila")).toHaveAttribute(
+      "src",
+      "/images/voxtera-hero-reference.png",
+    );
+    expect(screen.getAllByRole("link", { name: "Baixar launcher para Windows (.exe)" })[0]).toHaveAttribute(
+      "href",
+      "/downloads/VoxteraLauncher.exe",
+    );
+  });
+
   it("does not expose GitHub links", () => {
     render(<App />);
     expect(screen.queryByRole("link", { name: /github/i })).not.toBeInTheDocument();

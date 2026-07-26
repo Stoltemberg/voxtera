@@ -11,7 +11,7 @@ export function App() {
     <div className="site-shell">
       <main id="top">
         <section className="hero" aria-labelledby="hero-title">
-          <img className="hero-image" src="/images/forest-dawn.jpg" alt="Floresta voxel iluminada pelo nascer do sol" />
+          <img className="hero-image" src="/images/voxtera-hero-reference.png" alt="Paisagem ensolarada de Voxtera com aventureiro e vila" />
           <div className="hero-legibility" aria-hidden="true" />
           <header className="site-header page-width">
             <a className="brand" href="#top" aria-label="Voxtera — início">VOXTERA</a>
