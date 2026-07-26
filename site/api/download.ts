@@ -1,4 +1,4 @@
-import { findLauncherUrl } from "../src/release";
+import { findLauncherUrl, isLauncherDownloadUrl } from "../src/release";
 
 const LATEST_RELEASE_URL = "https://api.github.com/repos/Stoltemberg/voxtera/releases/latest";
 const RELEASES_URL = "https://github.com/Stoltemberg/voxtera/releases";
@@ -17,7 +17,7 @@ export default async function handler(
     }
 
     const launcherUrl = findLauncherUrl(await latestRelease.json());
-    if (typeof launcherUrl !== "string" || launcherUrl.length === 0) {
+    if (typeof launcherUrl !== "string" || !isLauncherDownloadUrl(launcherUrl)) {
       return response.redirect(302, RELEASES_URL);
     }
 

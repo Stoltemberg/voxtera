@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findLauncherUrl } from "./release";
+import { findLauncherUrl, isLauncherDownloadUrl } from "./release";
 
 describe("findLauncherUrl", () => {
   it("returns the exact Windows launcher executable", () => {
@@ -13,5 +13,9 @@ describe("findLauncherUrl", () => {
 
   it("returns null when the executable is absent", () => {
     expect(findLauncherUrl({ assets: [] })).toBeNull();
+  });
+
+  it("rejects a malformed launcher download URL", () => {
+    expect(isLauncherDownloadUrl("not a URL")).toBe(false);
   });
 });
