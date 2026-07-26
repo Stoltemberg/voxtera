@@ -18,11 +18,15 @@ describe("App", () => {
   it("exposes the primary executable download action", () => {
     render(<App />);
 
-    const downloadActions = screen.getAllByRole("link", {
-      name: "Baixar launcher para Windows (.exe)",
-    });
+    const downloadActions = [
+      screen.getByRole("link", { name: "Baixar" }),
+      ...screen.getAllByRole("link", {
+        name: "Baixar launcher para Windows (.exe)",
+      }),
+      screen.getByRole("link", { name: "Baixar launcher" }),
+    ];
 
-    expect(downloadActions).toHaveLength(2);
+    expect(downloadActions).toHaveLength(4);
     downloadActions.forEach((action) => {
       expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher.exe");
     });
@@ -43,6 +47,9 @@ describe("App", () => {
 
   it("does not expose GitHub links", () => {
     render(<App />);
-    expect(screen.queryByRole("link", { name: /github/i })).not.toBeInTheDocument();
+
+    document.querySelectorAll<HTMLAnchorElement>("a").forEach((link) => {
+      expect(link.href).not.toContain("github.com");
+    });
   });
 });
