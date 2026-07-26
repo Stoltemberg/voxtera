@@ -1,4 +1,4 @@
-import { findLauncherUrl, isLauncherDownloadUrl } from "../src/release";
+import { findLauncherUrl, isLauncherDownloadUrl } from "../src/release.js";
 
 const LATEST_RELEASE_URL = "https://api.github.com/repos/Stoltemberg/voxtera/releases/latest";
 const RELEASES_URL = "https://github.com/Stoltemberg/voxtera/releases";
