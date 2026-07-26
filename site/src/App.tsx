@@ -22,7 +22,7 @@ export function App() {
             <a className="header-download" href={DOWNLOAD_URL}>Baixar</a>
           </header>
           <div className="hero-content page-width">
-            <h1 id="hero-title">Seu mundo voxel começa aqui</h1>
+            <h1 id="hero-title">Sua aventura começa aqui</h1>
             <p className="hero-copy">Voxtera é um mundo aberto para explorar, construir e transformar cada descoberta em uma história sua.</p>
             <a className="button button-primary" href={DOWNLOAD_URL}>Baixar launcher para Windows (.exe)</a>
             <p className="platform-note">Windows 10/11 · instalação e atualizações automáticas</p>

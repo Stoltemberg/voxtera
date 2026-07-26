@@ -6,6 +6,14 @@ import { App } from "./App";
 afterEach(cleanup);
 
 describe("App", () => {
+  it("uses the approved hero adventure message", () => {
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sua aventura começa aqui" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders the approved cinematic sections without card or thumbnail composition", () => {
     render(<App />);
 
