@@ -35,9 +35,9 @@ describe("App", () => {
   it("renders the approved hero artwork with a direct launcher download", () => {
     render(<App />);
 
-    expect(screen.getByAltText("Paisagem ensolarada de Voxtera com aventureiro e vila")).toHaveAttribute(
+    expect(screen.getByAltText("Vale ensolarado de Voxtera com aventureiro e vila")).toHaveAttribute(
       "src",
-      "/images/voxtera-hero-reference.png",
+      "/images/voxtera-clean-hero.png",
     );
     expect(screen.getAllByRole("link", { name: "Baixar launcher para Windows (.exe)" })[0]).toHaveAttribute(
       "href",
