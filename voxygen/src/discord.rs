@@ -16,7 +16,7 @@ use tracing::{debug, info, warn};
 ///
 /// **Note:** currently a private app created for testing purposes, can be
 /// shared to a team or replaced entirely later on
-const DISCORD_APP_ID: ds::AppId = 1006661232465563698;
+const DISCORD_APP_ID: ds::AppId = 1531103303063175259;
 
 /// Discord presence update command
 #[derive(Debug, Clone)]
