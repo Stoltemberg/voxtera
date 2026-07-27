@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { DOWNLOAD_URL } from "./download";
 
 const startSteps = [
@@ -86,15 +85,6 @@ export function App() {
             </div>
           </article>
 
-          <article className="editorial editorial-adventure page-width" aria-labelledby="adventure-title">
-            <div className="editorial-adventure-copy">
-              <p className="section-number">02</p>
-              <h3 id="adventure-title">Aventure-se</h3>
-              <p>Descubra ruínas, encare criaturas e encontre novos caminhos onde a paisagem termina.</p>
-            </div>
-            <img src="/images/ruins-adventure.jpg" alt="Grupo em combate contra criaturas em ruínas vulcânicas de Voxtera" />
-          </article>
-
           <article className="editorial editorial-build page-width" aria-labelledby="build-title">
             <div className="editorial-build-copy">
               <BuildIcon />
@@ -104,6 +94,15 @@ export function App() {
             </div>
             <img src="/images/voxtera-build-village.png" alt="Vila voxel ensolarada para construir em Voxtera" />
           </article>
+
+          <article className="editorial editorial-adventure page-width" aria-labelledby="adventure-title">
+            <div className="editorial-adventure-copy">
+              <p className="section-number">02</p>
+              <h3 id="adventure-title">Aventure-se</h3>
+              <p>Descubra ruínas, encare criaturas e encontre novos caminhos onde a paisagem termina.</p>
+            </div>
+            <img src="/images/ruins-adventure.jpg" alt="Grupo em combate contra criaturas em ruínas vulcânicas de Voxtera" />
+          </article>
         </section>
 
         <section id="start" className="start section page-width" aria-labelledby="start-title">
@@ -111,19 +110,23 @@ export function App() {
             <h2 id="start-title">Como começar</h2>
             <p>Sem complicação: o launcher prepara o caminho para você entrar no jogo.</p>
           </div>
-          <ol className="steps">
-            {startSteps.map(({ number, title, text, image, alt }, index) => (
-              <Fragment key={number}>
-                <li>
+          <div className="steps-layout">
+            <ol className="steps">
+              {startSteps.map(({ number, title, text, image, alt }) => (
+                <li key={number}>
                   <span className="step-number">{number}</span>
                   <img src={image} alt={alt} />
                   <h3>{title}</h3>
                   <p>{text}</p>
                 </li>
-                {index < startSteps.length - 1 && <span className="steps-path" aria-hidden="true" />}
-              </Fragment>
-            ))}
-          </ol>
+              ))}
+            </ol>
+            <div className="steps-paths" aria-hidden="true">
+              {startSteps.slice(0, -1).map(({ number }) => (
+                <span className="steps-path" key={number} />
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="download-band" aria-labelledby="download-title">

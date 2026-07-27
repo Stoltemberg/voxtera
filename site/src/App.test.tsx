@@ -72,4 +72,24 @@ describe("App", () => {
     expect(screen.getByAltText("Espada e escudo voxel para entrar em Voxtera")).toHaveAttribute("src", "/images/voxtera-step-sword-shield.png");
     expect(screen.getByAltText("Vale voxel com aventureiro e lobo")).toHaveAttribute("src", "/images/voxtera-closing-valley.png");
   });
+
+  it("keeps the build article between exploration and adventure", () => {
+    render(<App />);
+
+    const editorialHeadings = Array.from(document.querySelectorAll(".editorial h3"), (heading) => heading.textContent);
+
+    expect(editorialHeadings).toEqual(["Explore", "Construa", "Aventure-se"]);
+  });
+
+  it("renders only list items as direct children of the onboarding list", () => {
+    render(<App />);
+
+    const stepsList = document.querySelector("ol.steps");
+
+    expect(stepsList).not.toBeNull();
+    expect(Array.from(stepsList!.children)).toHaveLength(3);
+    Array.from(stepsList!.children).forEach((child) => {
+      expect(child.tagName).toBe("LI");
+    });
+  });
 });
