@@ -6,6 +6,7 @@ char_selection-joining_character = Entrando no mundo...
 char_selection-logout = Deslogar
 char_selection-create_new_character = Criar um novo personagem
 char_selection-creating_character = Criando personagem...
+char_selection-editing_character = Salvando Personagem...
 char_selection-uncanny_valley = Região Selvagem
 char_selection-beard = Barba
 char_selection-hair_style = Estilo dos Cabelos
@@ -14,10 +15,15 @@ char_selection-eye_color = Cor dos Olhos
 char_selection-skin = Pele
 char_selection-eyeshape = Detalhe dos Olhos
 char_selection-accessories = Acessórios
-char_selection-create_info_name = Seu personagem precisa de um nome!
-char_selection-version_mismatch = AVISO! Este servidor está executando uma versão diferente e possivelmente incompatível do jogo. Por favor, atualize o seu jogo.
+char_selection-height_scale = Altura
+char_selection-hardcore = Hardcore
+char_selection-hardcore_tooltip = Personagens hardcore serão excluídos ao morrer, sem outras mudanças na dificuldade.
+    
+    Hardcore is recommended for experienced players only.
 char_selection-starting_site = Local de Início
 char_selection-starting_site_next = Próximo
 char_selection-starting_site_prev = Anterior
 char_selection-starting_site_kind = Tipo: { $kind }
+char_selection-create_info_name = Seu personagem precisa de um nome!
+char_selection-version_mismatch = AVISO! Este servidor está executando uma versão diferente e possivelmente incompatível do jogo. Por favor, atualize o seu jogo.
 char_selection-rules = Regras

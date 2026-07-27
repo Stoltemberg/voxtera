@@ -3,8 +3,12 @@ hud-crafting-recipes = Receitas
 hud-crafting-ingredients = Ingredientes:
 hud-crafting-craft = Forjar
 hud-crafting-craft_all = Forjar Tudo
+hud-crafting-repair-selection = Seleção
+hud-crafting-repair_equipped = Equipado
+hud-crafting-repair_all = Todos
+hud-crafting-tool_cata = Ferramentas:
+hud-crafting-req_crafting_station = Estação:
 hud-crafting-anvil = Bigorna
-hud-crafting-repair_bench = Bancada de Reparo
 hud-crafting-cauldron = Caldeirão
 hud-crafting-cooking_pot = Panela
 hud-crafting-crafting_bench = Bancada de Criação
@@ -13,6 +17,7 @@ hud-crafting-loom = Tear
 hud-crafting-spinning_wheel = Roca
 hud-crafting-tanning_rack = Curtidor de couro
 hud-crafting-salvaging_station = Mesa de Restituição
+hud-crafting-repair_bench = Bancada de Reparo
 hud-crafting-campfire = Fogueira
 hud-crafting-tabs-all = Tudo
 hud-crafting-tabs-armor = Armadura
@@ -26,12 +31,13 @@ hud-crafting-tabs-weapon = Armas
 hud-crafting-tabs-bag = Mochilas
 hud-crafting-tabs-processed_material = Materiais
 hud-crafting-dismantle_title = Desmontagem
-hud-crafting-dismantle_explanation =
-    Passe o cursor nos itens da sua mochila para ver o que
-    você pode desmantelar.
+hud-crafting-dismantle_explanation = 
+    Hover items in your bag to see what
+    you can salvage.
 
-    Dê clique duplo neles para iniciar a desmontagem.
+    Double-Click them to start dismantling.
 hud-crafting-modular_desc = Arraste partes de arma aqui para criar uma arma
+hud-crafting-repair_desc = Arraste itens danificados aqui para repará-los
 hud-crafting-mod_weap_prim_slot_title = Componente Primário de Arma
 hud-crafting-mod_weap_prim_slot_desc = Arraste um componente primário de arma aqui (e.g. uma lâmina de espada, cabeça de machado, ou armação de arco).
 hud-crafting-mod_weap_sec_slot_title = Componente Secundário de Arma
@@ -44,3 +50,7 @@ hud-crafting-mod_comp_sec_slot_title = Material Animal
 hud-crafting-mod_comp_sec_slot_desc = Opcionalmente coloque um ingrediente de origem animal, apenas certos ingredientes podem ser usados para criar armas.
 hud-crafting-repair_slot_title = Item quebrado
 hud-crafting-repair_slot_desc = Coloque um item quebrado aqui para ver o custo do reparo e o nível atual de durabilidade.
+hud-crafting-recipe-uncraftable = Receita Não Pode Ser Criada
+hud-crafting-recipe-unlearned = Você deve primeiro aprender a criar esta receita.
+hud-crafting-show_unknown_recipes = Mostrar Receitas Desconhecidas
+hud-crafting-hide_unknown_recipes = Ocultar Receitas Desconhecidas

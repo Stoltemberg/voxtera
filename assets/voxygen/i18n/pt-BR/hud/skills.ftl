@@ -1,13 +1,25 @@
+## Skill tree UI
+
+hud-skill_tree-general = Combate Geral
+hud-skill_tree-sword = Espada
+hud-skill_tree-axe = Machado
+hud-skill_tree-hammer = Martelo
+hud-skill_tree-bow = Arco
+hud-skill_tree-staff = Cajado de Fogo
+hud-skill_tree-sceptre = Ceptro
+hud-skill_tree-mining = Mineração
+
 hud-rank_up = Novo ponto de habilidade
-hud-skill-sp_available =
+hud-skill-sp_available = 
     { $number ->
-        [0] Sem ponto de habilidade
-        [1] { $number } ponto de habilidade
-       *[other] { $number } pontos de habilidade
+        [0] No skill points available
+        [1] { $number } skill point available
+        *[other] { $number } skill points available
     }
 hud-skill-not_unlocked = Não desbloqueado
 hud-skill-req_sp = { "\u000A" }Requer { $number } PH
 hud-skill-set_as_exp_bar = Acompanhar o progresso na barra de experiência
+
 hud-skill-unlck_sword_title = Proficiência em espada
 hud-skill-unlck_sword = Desbloqueia a árvore de habilidades de espada.{ $SP }
 hud-skill-unlck_axe_title = Proficiência com machado
@@ -97,3 +109,17 @@ hud-skill-pick_strike_oregain_title = Rendimento de Minério com a Picareta
 hud-skill-pick_strike_oregain = Change de ganhar minérios extras ({ $boost }% por nível).{ $SP }
 hud-skill-pick_strike_gemgain_title = Rendimento de Gemas com a Picareta
 hud-skill-pick_strike_gemgain = Change de ganhar gemas extras ({ $boost }% por nível).{ $SP }
+
+## Sword stances
+hud-skill-sword_stance_cleaving = Cortante
+hud-skill-sword_stance_agile = Ágil
+hud-skill-sword_stance_crippling = Debilitante
+hud-skill-sword_stance_heavy = Pesado
+hud-skill-sword_stance_defensive = Defensivo
+
+## Skill tree error dialog
+hud-skill-persistence-hash_mismatch = Uma diferença foi detectada em um dos seus grupos de habilidades desde a última vez que jogou.
+hud-skill-persistence-deserialization_failure = Houve um erro ao carregar algumas das suas habilidades do banco de dados.
+hud-skill-persistence-spent_experience_missing = A quantidade de experiência livre em um dos seus grupos de habilidades era diferente da última vez que jogou.
+hud-skill-persistence-skills_unlock_failed = Suas habilidades não puderam ser obtidas na mesma ordem que você as adquiriu. Pré-requisitos ou custos podem ter mudado.
+hud-skill-persistence-common_message = Alguns dos seus pontos de habilidade foram redefinidos. Você precisará reatribuí-los.

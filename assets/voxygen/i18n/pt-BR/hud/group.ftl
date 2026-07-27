@@ -1,6 +1,11 @@
 hud-group = Grupo
+
 hud-group-invite_to_join = { $name } convidou você para o grupo!
 hud-group-invite_to_trade = { $name } convidou você para trocar itens!
+hud-group-invite-accepted = { $target } accepted your group invite.
+hud-group-invite-declined = { $target } declined your group invite.
+hud-group-invite-timed_out = Group invite to { $target } timed out.
+
 hud-group-invite = Convidar
 hud-group-kick = Expulsar
 hud-group-assign_leader = Atribuír Líder

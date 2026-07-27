@@ -1,20 +1,35 @@
-object-potion_agility = Poção de Agilidade
-    .desc = Voem, seus idiotas!
-object-burning_charm = Amuleto Ardente
-    .desc = A chama é sua aliada, aproveite seu poder para queimar seus inimigos.
-object-lifesteal_charm = Amuleto Sifão
-    .desc = Sifone sua vida do seu alvo e use-a para você.
-object-frozen_charm = Amuleto Congelante
-    .desc = Deixe seus inimigos sentirem a ferroada do frio enquanto você os congela.
-object-potion_big = Poção Grande
-    .desc = Remédio precioso, é o maior frasco rejuvenescedor já feito.
-object-potion_combustion = Poção de Combustão
-    .desc = Incendeia o usuário.
-object-potion_minor = Poção Menor
-    .desc = Uma pequena poção preparada com maçãs e mel.
 object-potion_red = Poção Potente
-    .desc = Uma poção de cura porente.
+    .desc = A potent healing potion.
+
+object-potion_curious = Poção Curiosa
+    .desc = Wonder what this does...
+
+object-potion_trans = Tintura de Reforma Acelerada
+    .desc = Permanently changes your body type
+
+object-potion_agility = Poção de Agilidade
+    .desc = Fly, you fools!
+
+object-potion_big = Poção Grande
+    .desc = Precious medicine, it makes for the largest rejuvenative flask yet.
+
+object-potion_combustion = Poção de Combustão
+    .desc = Sets the user ablaze.
+
 object-potion_med = Poção Média
-    .desc = Uma invenção inovadora de um boticário, melhor do que suas antecessoras menores.
-object-curious_potion = Poção Curiosa
-    .desc = Me pergunto o que ela faz...
+    .desc = An innovative invention from an apothecary, better than its smaller precursors.
+
+object-potion_minor = Poção Menor
+    .desc = A small potion concocted from apples and honey.
+
+object-potion_freezing = Poção Congelante
+    .desc = Freezes the user's brain.
+
+object-burning_charm = Amuleto Ardente
+    .desc = Flame is your ally, harness its power to burn your foes.
+
+object-frozen_charm = Amuleto Congelante
+    .desc = Let your enemies feel the sting of cold as you freeze them in their tracks.
+
+object-lifesteal_charm = Amuleto Sifão
+    .desc = Siphon your target life and use it for your own.
