@@ -36,10 +36,10 @@ hud-temp_quest_text =
     Whenever you feel ready, try to get even better equipment from the many challenges marked on your map!
 hud-spell = Magias
 hud-diary = Diário
-hud-free_look_indicator = Câmera livre ativada. Pressione { $key } para desabilitar.
+hud-free_look_indicator = Câmera livre ativada. Pressione  para desabilitar.
 { $toggle ->
-[0] Free look active. Press { $key } to disable.
-*[other] Free look active. Stop holding { $key } to disable.
+[0] Free look active. Press { $1 } to disable.
+*[other] Free look active. Stop holding { $1 } to disable.
 }
 hud-camera_clamp_indicator = Trava vertical de câmera ativada. Pressione { $key } para desabilitar.
 hud-auto_walk_indicator = Caminhar/Nadar automático ativado
@@ -81,19 +81,19 @@ hud-init-stage-server-db-migrations = { "[" }{ -server }]: Aplicando migrações
 hud-init-stage-server-db-vacuum = { "[" }{ -server }]: Limpando banco de dados...
 hud-init-stage-server-worldsim-erosion = { "[" }{ -server }]: Erosão { $percentage } %
 hud-init-stage-server-worldsim-erosion_time_left = 
-      [one] ~{ $n } day remaining
-      *[other] ~{ $n } days remaining
+      [one] ~{ $1 } day remaining
+      *[other] ~{ $1 } days remaining
     }
-      [one] ~{ $n } hour remaining
-      *[other] ~{ $n } hours remaining
+      [one] ~{ $1 } hour remaining
+      *[other] ~{ $1 } hours remaining
     }
-      [one] ~{ $n } minute remaining
-      *[other] ~{ $n } minutes remaining
+      [one] ~{ $1 } minute remaining
+      *[other] ~{ $1 } minutes remaining
     }
-      [one] ~{ $n } second remaining
-      *[other] ~{ $n } seconds remaining
+      [one] ~{ $1 } second remaining
+      *[other] ~{ $1 } seconds remaining
     }
-hud-init-stage-server-worldciv-civcreate = { "[" }{ -server }]: Gerado { $generated } sem { $total } civilizacões
+hud-init-stage-server-worldciv-civcreate = { "[" }{ -server }]: Gerado { $generated } { $total } sem { $generated } { $total } civilizacões
 hud-init-stage-server-worldciv-site = { "[" }{ -server }]: Gerando sítios...
 hud-init-stage-server-economysim = { "[" }{ -server }]: Simulando economia...
 hud-init-stage-server-spotgen = { "[" }{ -server }]: Gerando pontos...
@@ -104,6 +104,6 @@ hud-init-stage-client-request-server-version = { "[" }{ -client }]: Aguardando v
 hud-init-stage-client-authentication = { "[" }{ -client }]: Autenticando...
 hud-init-stage-client-load-init-data = { "[" }{ -client }]: Carregando dados de inicialização do servidor...
 hud-init-stage-client-starting-client = { "[" }{ -client }]: Preparando Cliente...
-hud-init-stage-render-pipeline = Criando fluxo de renderização ({ $done }/{ $total })
+hud-init-stage-render-pipeline = Criando fluxo de renderização ({ $done } { $total }/{ $done } { $total })
 
 hud-tutorial-disable = Desativar permanentemente as dicas do tutorial

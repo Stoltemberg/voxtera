@@ -34,5 +34,4 @@ hud-friends-invite = Convidar
 hud-friends-empty = Sua lista de amigos está vazia
 hud-friends-no-requests = Nenhum pedido pendente
 hud-friends-no-players = Nenhum jogador encontrado
-hud-friends-invite = Convidar
 hud-friends-pending = pendentes

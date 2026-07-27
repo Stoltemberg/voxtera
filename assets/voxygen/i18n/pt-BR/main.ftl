@@ -64,11 +64,11 @@ main-login-failed_sending_request = Requisição ao servidor de autenticação f
 main-login-invalid_character = O personagem selecionado é inválido.
 main-login-client_crashed = Cliente abortou.
 main-login-not_on_whitelist = Você não está na lista dos membros permitidos(whitelist) do servidor que está tentando ingressar.
-main-login-banned = Você foi banido pelo seguinte motivo:
+main-login-banned = Você foi banido pelo seguinte motivo: { $reason }
 main-login-banned_until = 
    You have been temporarily banned with the following reason: { $reason }
    Until: { $end_date }
-main-login-kicked = Você foi expulso pelo seguinte motivo:
+main-login-kicked = Você foi expulso pelo seguinte motivo: { $reason }
 main-login-select_language = Escolha um Idioma
 main-login-client_version = Versão do cliente
 main-login-server_version = Versão do servidor
