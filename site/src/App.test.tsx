@@ -92,4 +92,12 @@ describe("App", () => {
       expect(child.tagName).toBe("LI");
     });
   });
+
+  it("renders the required onboarding titles", () => {
+    render(<App />);
+
+    ["Baixe o launcher", "Instale o jogo", "Entre em Voxtera"].forEach((title) => {
+      expect(screen.getByRole("heading", { level: 3, name: title })).toBeInTheDocument();
+    });
+  });
 });

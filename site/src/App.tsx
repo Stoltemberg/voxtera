@@ -10,14 +10,14 @@ const startSteps = [
   },
   {
     number: "02",
-    title: "Instale em poucos cliques",
+    title: "Instale o jogo",
     text: "O launcher cuida da instalação e das atualizações para você.",
     image: "/images/voxtera-step-portal.png",
     alt: "Portal voxel para instalar o jogo",
   },
   {
     number: "03",
-    title: "Entre no mundo",
+    title: "Entre em Voxtera",
     text: "Escolha seu rumo e dê o primeiro passo quando estiver pronto.",
     image: "/images/voxtera-step-sword-shield.png",
     alt: "Espada e escudo voxel para entrar em Voxtera",
