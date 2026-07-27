@@ -1,934 +1,957 @@
-### Este arquivo contém todos os nomes que aparecem acima das entidades.
+### Este arquivo contém todos os nomes que aparecem sobre as entidades.
 ###
-### Se quiser personalizar os nomes que NPCs usam em suas falas, veja body.ftl
+### Se quiser personalizar os nomes que os NPCs usam em sua fala, veja body.ftl
 ### com as chaves body-npc-speech-*
 
+## Diversos
 name-misc-with-alias-template = { $alias } ({ $old_name })
 
+## Usado para template EntityConfig
+name-custom-template-paddy =
     .fem = Paddy
     .masc = Paddy
 
+## Invocação de fallback
+name-custom-fallback-summon =
     .fem = Invocação
     .masc = Invocação
     .neut = Invocação
 
-    .fem = Agricultora
-    .masc = Agricultor
-
+## Nomes de NPCs de aldeia
+name-custom-village-farmer =
+    .fem = Fazendeira
+    .masc = Fazendeiro
+name-custom-village-hunter =
     .fem = Caçadora
     .masc = Caçador
-
+name-custom-village-captain =
     .fem = Capitã
     .masc = Capitão
-
+name-custom-village-guard =
     .fem = Guarda
     .masc = Guarda
-
-    .fem = Chefe
-    .masc = Chefe
-
+name-custom-village-chef =
+    .fem = Chef
+    .masc = Chef
+name-custom-village-blacksmith =
     .fem = Ferreira
     .masc = Ferreiro
-
+name-custom-village-bowman =
     .fem = Arqueira
     .masc = Arqueiro
-
-    .fem = Courteira
+name-custom-village-skinner =
+    .fem = Coureira
     .masc = Coureiro
-
-    .fem = Montanhista
-    .masc = Montanhista
-
+name-custom-village-mountaineer =
+    .fem = Montanhesa
+    .masc = Montanhês
+name-custom-village-villager =
     .fem = Aldeã
     .masc = Aldeão
-
+name-custom-village-herbalist =
     .fem = Herbalista
     .masc = Herbalista
-
+name-custom-village-alchemist =
     .fem = Alquimista
     .masc = Alquimista
-
-    .fem = Mercadora
-    .masc = Mercador
-
+name-custom-village-merchant =
+    .fem = Comerciante
+    .masc = Comerciante
+## Viajantes
+name-custom-world-traveler0 =
     .fem = Viajante Iniciante
     .masc = Viajante Iniciante
-
+name-custom-world-traveler1 =
     .fem = Viajante
     .masc = Viajante
-
+name-custom-world-traveler2 =
     .fem = Viajante Experiente
     .masc = Viajante Experiente
-
+name-custom-world-traveler3 =
     .fem = Viajante Veterano
     .masc = Viajante Veterano
 
-    .fem = Trapaceira
-    .masc = Trapaceiro
-
+## NPCs de eventos
+name-custom-calendar-april_fools-aggressive-trickster =
+    .fem = Travessa
+    .masc = Travesso
+name-custom-calendar-april_fools-aggressive-pigmaster =
     .fem = Mestra dos Porcos
     .masc = Mestre dos Porcos
-
+name-custom-calendar-april_fools-aggressive-rat =
     .fem = Rata
     .masc = Rato
+name-custom-calendar-april_fools-aggressive-rat-mini =
+    .fem = Rato Mini
+    .masc = Rato Mini
+name-custom-calendar-april_fools-aggressive-rat-small =
+    .fem = Rato Pequeno
+    .masc = Rato Pequeno
+name-custom-calendar-april_fools-aggressive-rat-tiny =
+    .fem = Rato Minúsculo
+    .masc = Rato Minúsculo
+name-custom-calendar-april_fools-aggressive-rat-smol =
+    .fem = Ratinho
+    .masc = Ratinho
+name-custom-calendar-halloween-aggressive-trickster =
+    .fem = Travessa
+    .masc = Travesso
 
-    .fem = Ratinha Mini
-    .masc = Ratinho Mini
-
-    .fem = Ratinha Pequena
-    .masc = Ratinho Pequeno
-
-    .fem = Ratinha Minúscula
-    .masc = Ratinho Minúsculo
-
-    .fem = Ratinha Smol
-    .masc = Ratinho Smol
-
-    .fem = Trapaceira
-    .masc = Trapaceiro
-
+## NPCs de Masmorra
+name-custom-dungeon-adlet-hunter =
     .fem = Caçadora Adlet
     .masc = Caçador Adlet
-
-    .fem = Picareta de Gelo Adlet
-    .masc = Picareta de Gelo Adlet
-
+name-custom-dungeon-adlet-icepicker =
+    .fem = Quebra-gelo Adlet
+    .masc = Quebra-gelo Adlet
+name-custom-dungeon-adlet-tracker =
     .fem = Rastreadora Adlet
     .masc = Rastreador Adlet
-
-    .fem = Mestra das Feras
-    .masc = Mestre das Feras
-
-    .fem = Cão das Trevas Domado
-    .masc = Cão das Trevas Domado
-
+name-custom-dungeon-cultist-beastmaster =
+    .fem = Domadora de Feras
+    .masc = Domador de Feras
+name-custom-dungeon-cultist-hound =
+    .fem = Cão Sombrio Domado
+    .masc = Cão Sombrio Domado
+name-custom-dungeon-cultist-cultist =
     .fem = Cultista
     .masc = Cultista
-
-    .fem = Mineradora Gananciosa
-    .masc = Minerador Ganancioso
-
+name-custom-dungeon-dwarven_quarry-miner =
+    .fem = Mineira Gananciosa
+    .masc = Mineiro Ganancioso
+name-custom-dungeon-dwarven_quarry-mine_guard =
     .fem = Guarda da Mina
     .masc = Guarda da Mina
-
+name-custom-dungeon-fallback-boss =
     .fem = Ovelha Louca
     .masc = Ovelha Louca
-
-    .fem = Ganso Grande
-    .masc = Ganso Grande
-
+name-custom-dungeon-fallback-miniboss =
+    .fem = Ganso Gigante
+    .masc = Ganso Gigante
+name-custom-dungeon-fallback-enemy =
     .fem = Yan Hus
     .masc = Yan Hus
-
-    .fem = Espreitadora Gnarling
+name-custom-dungeon-gnarling-stalker =
+    .fem = Espreitador Gnarling
     .masc = Espreitador Gnarling
-
-    .fem = Lenhadora Gnarling
+name-custom-dungeon-gnarling-logger =
+    .fem = Lenhador Gnarling
     .masc = Lenhador Gnarling
-
+name-custom-dungeon-gnarling-mugger =
     .fem = Assaltante Gnarling
     .masc = Assaltante Gnarling
-
+name-custom-dungeon-haniwa-guard =
     .fem = Guarda Haniwa
     .masc = Guarda Haniwa
-
+name-custom-dungeon-haniwa-soldier =
     .fem = Soldado Haniwa
     .masc = Soldado Haniwa
-
+name-custom-dungeon-haniwa-archer =
     .fem = Arqueira Haniwa
     .masc = Arqueiro Haniwa
-
-    .fem = Atiradora de Elite Myrmidon
-    .masc = Atirador de Elite Myrmidon
-
-    .fem = Hoplita Myrmidon
-    .masc = Hoplita Myrmidon
-
-    .fem = Estrategista Myrmidon
-    .masc = Estrategista Myrmidon
-
+name-custom-dungeon-myrmidon-marksman =
+    .fem = Atiradora Mirmidão
+    .masc = Atirador Mirmidão
+name-custom-dungeon-myrmidon-hoplite =
+    .fem = Hoplita Mirmidão
+    .masc = Hoplita Mirmidão
+name-custom-dungeon-myrmidon-strategian =
+    .fem = Estrategista Mirmidão
+    .masc = Estrategista Mirmidão
+name-custom-dungeon-sahagin-sorcerer =
     .fem = Feiticeira Sahagin
     .masc = Feiticeiro Sahagin
-
-    .fem = Atiradora de Elite Sahagin
-    .masc = Atirador de Elite Sahagin
-
+name-custom-dungeon-sahagin-sniper =
+    .fem = Franco-atiradora Sahagin
+    .masc = Franco-atirador Sahagin
+name-custom-dungeon-sahagin-spearman =
     .fem = Lanceira Sahagin
     .masc = Lanceiro Sahagin
-
+name-custom-dungeon-sea_chapel-cardinal =
     .fem = Cardeal
     .masc = Cardeal
-
+name-custom-dungeon-sea_chapel-sea_cleric =
     .fem = Clériga do Mar
     .masc = Clérigo do Mar
-
+name-custom-dungeon-sea_chapel-prisoner =
     .fem = Prisioneira
     .masc = Prisioneiro
 
-    .neut = Torreta Possuída
-
-    .neut = Torreta Mecânica
-
-    .neut = Lança-Lava
-
+## Objetos de Masmorra
+name-custom-dungeon-cultist-turret =
+    .neut = Torre Possuída
+name-custom-dungeon-dwarven_quarry-turret =
+    .neut = Torre Mecânica
+name-custom-dungeon-dwarven_quarry-lavathrower =
+    .neut = Lança-lava
+name-custom-dungeon-sea_chapel-organ =
     .neut = Órgão
-
+name-custom-dungeon-haniwa-sentry =
     .neut = Sentinela Haniwa
-
+name-custom-dungeon-terracotta-terracotta_statue =
     .neut = Estátua de Terracota
-
+name-custom-dungeon-terracotta-terracotta_statue_key =
     .neut = Estátua de Terracota
-
+name-custom-dungeon-terracotta-terracotta_statue_key_chance =
     .neut = Estátua de Terracota
-
+name-custom-village-dummy =
     .neut = Boneco de Treino
 
-    .fem = Saqueadora Sombria
-    .masc = Saqueador Sombrio
 
+## NPCs de Locais
+name-custom-spot-grim_salvager =
+    .fem = Salvadora Sombria
+    .masc = Salvador Sombrio
+name-custom-spot-buccaneer =
     .fem = Bucaneira
     .masc = Bucaneiro
-
+name-custom-spot-pirate =
     .fem = Pirata
     .masc = Pirata
-
+name-custom-spot-witch_dark =
     .fem = Aprendiz de Bruxa
-    .masc = Aprendiz de Bruxo
-
+    .masc = Aprendiz de Bruxa
+name-custom-spot-bear =
     .fem = Urso Bem Alimentado
     .masc = Urso Bem Alimentado
-
+name-custom-spot-saurok =
     .fem = Bandida Saurok
     .masc = Bandido Saurok
-
-    .fem = Ladrã de Tumbas
-    .masc = Ladrão de Tumbas
-
+name-custom-spot-dwarf_grave_robber =
+    .fem = Saqueadora de Túmulos
+    .masc = Saqueador de Túmulos
+name-custom-spot-wizard-overseer =
     .fem = Supervisora
     .masc = Supervisor
-
+name-custom-spot-wizard-wizard_argo =
     .fem = Argo
     .masc = Argo
-
+name-custom-spot-wizard-adept =
     .fem = Adepta
     .masc = Adepto
-
-    .fem = Noviça
+name-custom-spot-wizard-novice =
+    .fem = Novata
     .masc = Novato
-
+name-custom-spot-wizard-wizard_trish =
     .fem = Trish
     .masc = Trish
-
+name-custom-spot-wizard-wizard_haku =
     .fem = Haku
     .masc = Haku
-
+name-custom-spot-wizard-spellbinder =
     .fem = Supervisora
     .masc = Supervisor
 
+## Nomes de NPCs fixos, DEVEM SER IGUAIS EM AMBOS OS GÊNEROS
+name-custom-wild-peaceful-salamander =
     .fem = Salamandra
     .masc = Salamandra
-
+name-custom-wild-peaceful-forest_fox =
     .fem = Raposa Vermelha
     .masc = Raposa Vermelha
-
+name-custom-wild-peaceful-arctic_hare =
     .fem = Lebre Ártica
     .masc = Lebre Ártica
-
+name-custom-wild-peaceful-sand_hare =
     .fem = Lebre do Deserto
     .masc = Lebre do Deserto
-
+name-custom-wild-peaceful-arctic_fox =
     .fem = Raposa Ártica
     .masc = Raposa Ártica
 
+## Nomes de Criaturas
+name-body-humanoid-danari =
     .fem = Danari
     .masc = Danari
-
+name-body-humanoid-dwarf =
     .fem = Anã
     .masc = Anão
-
+name-body-humanoid-elf =
     .fem = Elfa
     .masc = Elfo
-
+name-body-humanoid-human =
     .fem = Humana
     .masc = Humano
-
-    .fem = Orque
-    .masc = Orque
-
+name-body-humanoid-orc =
+    .fem = Orc
+    .masc = Orc
+name-body-humanoid-draugr =
     .fem = Draugr
     .masc = Draugr
-
+name-body-quadruped_small-pig =
     .fem = Porca
     .masc = Porco
-
+name-body-quadruped_small-fox =
     .fem = Raposa
     .masc = Raposa
-
+name-body-quadruped_small-sheep =
     .fem = Ovelha
     .masc = Ovelha
-
-    .fem = Javali
+name-body-quadruped_small-boar =
+    .fem = Javalina
     .masc = Javali
-
+name-body-quadruped_small-jackalope =
     .fem = Jackalope
     .masc = Jackalope
-
+name-body-quadruped_small-skunk =
     .fem = Gambá
     .masc = Gambá
-
+name-body-quadruped_small-cat =
     .fem = Gata
     .masc = Gato
-
-    .fem = Raposa-Morcego
-    .masc = Raposa-Morcego
-
+name-body-quadruped_small-batfox =
+    .fem = Raposa Morcego
+    .masc = Raposa Morcego
+name-body-quadruped_small-raccoon =
     .fem = Guaxinim
     .masc = Guaxinim
-
+name-body-quadruped_small-quokka =
     .fem = Quokka
     .masc = Quokka
-
+name-body-quadruped_small-holladon =
     .fem = Holladon
     .masc = Holladon
-
+name-body-quadruped_small-hyena =
     .fem = Hiena
     .masc = Hiena
-
+name-body-quadruped_small-rabbit =
     .fem = Coelha
     .masc = Coelho
-
-    .fem = Trufler
-    .masc = Trufler
-
-    .fem = Rã
+name-body-quadruped_small-truffler =
+    .fem = Trufadora
+    .masc = Trufador
+name-body-quadruped_small-frog =
+    .fem = Sapo
     .masc = Sapo
-
+name-body-quadruped_small-rat =
     .fem = Rata
     .masc = Rato
-
-    .fem = Axolote
-    .masc = Axolote
-
+name-body-quadruped_small-axolotl =
+    .fem = Axolotl
+    .masc = Axolotl
+name-body-quadruped_small-gecko =
     .fem = Gecko
     .masc = Gecko
-
+name-body-quadruped_small-turtle =
     .fem = Tartaruga
     .masc = Tartaruga
-
+name-body-quadruped_small-squirrel =
     .fem = Esquilo
     .masc = Esquilo
-
+name-body-quadruped_small-fungome =
     .fem = Fungome
     .masc = Fungome
-
-    .fem = Porco-Espinho
-    .masc = Porco-Espinho
-
+name-body-quadruped_small-porcupine =
+    .fem = Porco-espinho
+    .masc = Porco-espinho
+name-body-quadruped_small-beaver =
     .fem = Castora
     .masc = Castor
-
+name-body-quadruped_small-hare =
     .fem = Lebre
     .masc = Lebre
-
+name-body-quadruped_small-dog =
     .fem = Cadela
-    .masc = Cachorro
-
+    .masc = Cão
+name-body-quadruped_small-goat =
     .fem = Cabra
     .masc = Bode
-
+name-body-quadruped_small-seal =
     .fem = Foca
     .masc = Foca
-
+name-body-quadruped_small-treant_sapling =
     .fem = Muda de Treant
     .masc = Muda de Treant
-
-    .fem = Lesma Musgosa
-    .masc = Lesma Musgosa
-
+name-body-quadruped_small-mossy_snail =
+    .fem = Caracol Musgoso
+    .masc = Caracol Musgoso
+name-body-quadruped_medium-grolgar =
     .fem = Grolgar
     .masc = Grolgar
-
-    .fem = Tigre-Dente-de-Sabre
-    .masc = Tigre-Dente-de-Sabre
-
-    .fem = Tigresa
+name-body-quadruped_medium-saber =
+    .fem = Tigre Dente-de-sabre
+    .masc = Tigre Dente-de-sabre
+name-body-quadruped_medium-tiger =
+    .fem = Tigre
     .masc = Tigre
-
-    .fem = Carneiro de Presas
-    .masc = Carneiro de Presas
-
+name-body-quadruped_medium-tuskram =
+    .fem = Carneiro de Marfim
+    .masc = Carneiro de Marfim
+name-body-quadruped_medium-lion =
     .fem = Leoa
     .masc = Leão
-
+name-body-quadruped_medium-tarasque =
     .fem = Tarasque
     .masc = Tarasque
-
+name-body-quadruped_medium-wolf =
     .fem = Loba
     .masc = Lobo
-
-    .fem = Presa-de-Gelo
-    .masc = Presa-de-Gelo
-
+name-body-quadruped_medium-frostfang =
+    .fem = Presa de Gelo
+    .masc = Presa de Gelo
+name-body-quadruped_medium-mouflon =
     .fem = Muflão
     .masc = Muflão
-
-    .fem = Catoblepas
+name-body-quadruped_medium-catoblepas =
+    .fem = Catoblepa
     .masc = Catoblepas
-
-    .fem = Chocalhador-de-Ossos
-    .masc = Chocalhador-de-Ossos
-
+name-body-quadruped_medium-bonerattler =
+    .fem = Chocalho de Ossos
+    .masc = Chocalho de Ossos
+name-body-quadruped_medium-deer =
     .fem = Cerva
     .masc = Cervo
-
+name-body-quadruped_medium-hirdrasil =
     .fem = Hirdrasil
     .masc = Hirdrasil
-
+name-body-quadruped_medium-roshwalr =
     .fem = Roshwalr
     .masc = Roshwalr
-
+name-body-quadruped_medium-donkey =
     .fem = Jumenta
     .masc = Jumento
-
+name-body-quadruped_medium-camel =
     .fem = Camela
     .masc = Camelo
-
+name-body-quadruped_medium-zebra =
     .fem = Zebra
     .masc = Zebra
-
+name-body-quadruped_medium-antelope =
     .fem = Antílope
     .masc = Antílope
-
+name-body-quadruped_medium-kelpie =
     .fem = Kelpie
     .masc = Kelpie
-
+name-body-quadruped_medium-horse =
     .fem = Égua
     .masc = Cavalo
-
+name-body-quadruped_medium-barghest =
     .fem = Barghest
     .masc = Barghest
-
+name-body-quadruped_medium-cattle =
     .fem = Gado
     .masc = Gado
-
-    .fem = Cão das Trevas
-    .masc = Cão das Trevas
-
+name-body-quadruped_medium-darkhound =
+    .fem = Cão Sombrio
+    .masc = Cão Sombrio
+name-body-quadruped_medium-highland =
     .fem = Highland
     .masc = Highland
-
+name-body-quadruped_medium-yak =
     .fem = Iaque
     .masc = Iaque
-
+name-body-quadruped_medium-panda =
     .fem = Panda
     .masc = Panda
-
+name-body-quadruped_medium-bear =
     .fem = Urso
     .masc = Urso
-
-    .fem = Chifre-do-Pavor
-    .masc = Chifre-do-Pavor
-
+name-body-quadruped_medium-dreadhorn =
+    .fem = Chifre do Pavor
+    .masc = Chifre do Pavor
+name-body-quadruped_medium-moose =
     .fem = Alce
     .masc = Alce
-
-    .fem = Leopardo-das-Neves
-    .masc = Leopardo-das-Neves
-
+name-body-quadruped_medium-snowleopard =
+    .fem = Leopardo das Neves
+    .masc = Leopardo das Neves
+name-body-quadruped_medium-mammoth =
     .fem = Mamute
     .masc = Mamute
-
-    .fem = Elefanta
+name-body-quadruped_medium-elephant =
+    .fem = Elefante
     .masc = Elefante
-
+name-body-quadruped_medium-ngoubou =
     .fem = Ngoubou
     .masc = Ngoubou
-
+name-body-quadruped_medium-llama =
     .fem = Lhama
     .masc = Lhama
-
+name-body-quadruped_medium-alpaca =
     .fem = Alpaca
     .masc = Alpaca
-
+name-body-quadruped_medium-akhlut =
     .fem = Akhlut
     .masc = Akhlut
-
-    .fem = Costas-de-Cerdas
-    .masc = Costas-de-Cerdas
-
+name-body-quadruped_medium-bristleback =
+    .fem = Dorso Espinhoso
+    .masc = Dorso Espinhoso
+name-body-quadruped_medium-claysteed =
     .fem = Corcel de Argila
     .masc = Corcel de Argila
-
-    .fem = Coruja-das-Neves
-    .masc = Coruja-das-Neves
-
-    .fem = Coruja-de-Chifres
-    .masc = Coruja-de-Chifres
-
+name-body-bird_medium-snowy_owl =
+    .fem = Coruja das Neves
+    .masc = Coruja das Neves
+name-body-bird_medium-horned_owl =
+    .fem = Coruja Bicornuda
+    .masc = Coruja Bicornuda
+name-body-bird_medium-duck =
     .fem = Pata
     .masc = Pato
-
+name-body-bird_medium-cockatiel =
     .fem = Calopsita
     .masc = Calopsita
-
+name-body-bird_medium-chicken =
     .fem = Galinha
     .masc = Galo
-
+name-body-bird_medium-bat =
     .fem = Morcego
     .masc = Morcego
-
+name-body-bird_medium-penguin =
     .fem = Pinguim
     .masc = Pinguim
-
+name-body-bird_medium-goose =
     .fem = Gansa
     .masc = Ganso
-
+name-body-bird_medium-peacock =
     .fem = Pavão
     .masc = Pavão
-
+name-body-bird_medium-eagle =
     .fem = Águia
     .masc = Águia
-
+name-body-bird_medium-parrot =
     .fem = Papagaio
     .masc = Papagaio
-
+name-body-bird_medium-crow =
     .fem = Corvo
     .masc = Corvo
-
+name-body-bird_medium-dodo =
     .fem = Dodô
     .masc = Dodô
-
+name-body-bird_medium-parakeet =
     .fem = Periquito
     .masc = Periquito
-
-    .fem = Papagaio-do-Mar
-    .masc = Papagaio-do-Mar
-
+name-body-bird_medium-puffin =
+    .fem = Papagaio-do-mar
+    .masc = Papagaio-do-mar
+name-body-bird_medium-toucan =
     .fem = Tucano
     .masc = Tucano
-
-    .fem = Herdeira da Lua Sangrenta
-    .masc = Herdeira da Lua Sangrenta
-
+name-body-bird_medium-bloodmoon_bat =
+    .fem = Herdeira da Lua de Sangue
+    .masc = Herdeira da Lua de Sangue
+name-body-bird_medium-vampire_bat =
     .fem = Morcego Vampiro
     .masc = Morcego Vampiro
-
+name-body-fish_medium-marlin =
     .fem = Marlim
     .masc = Marlim
-
-    .fem = Pike de Gelo
-    .masc = Pike de Gelo
-
+name-body-fish_medium-icepike =
+    .fem = Pica-de-gelo
+    .masc = Pica-de-gelo
+name-body-dragon-reddragon =
     .fem = Dragão Vermelho
     .masc = Dragão Vermelho
-
+name-body-bird_large-phoenix =
     .fem = Fênix
     .masc = Fênix
-
+name-body-bird_large-cockatrice =
     .fem = Cocatriz
     .masc = Cocatriz
-
+name-body-bird_large-roc =
     .fem = Roc
     .masc = Roc
-
-    .fem = Drago Flamejante
-    .masc = Drago Flamejante
-
-    .fem = Drago das Nuvens
-    .masc = Drago das Nuvens
-
-    .fem = Drago de Gelo
-    .masc = Drago de Gelo
-
-    .fem = Drago do Mar
-    .masc = Drago do Mar
-
-    .fem = Drago da Floresta
-    .masc = Drago da Floresta
-
-    .fem = Peixe-Palhaço
-    .masc = Peixe-Palhaço
-
+name-body-bird_large-wyvern_flame =
+    .fem = Wyvern de Chamas
+    .masc = Wyvern de Chamas
+name-body-bird_large-wyvern_cloud =
+    .fem = Wyvern das Nuvens
+    .masc = Wyvern das Nuvens
+name-body-bird_large-wyvern_frost =
+    .fem = Wyvern de Gelo
+    .masc = Wyvern de Gelo
+name-body-bird_large-wyvern_sea =
+    .fem = Wyvern do Mar
+    .masc = Wyvern do Mar
+name-body-bird_large-wyvern_weald =
+    .fem = Wyvern do Bosque
+    .masc = Wyvern do Bosque
+name-body-fish_small-clownfish =
+    .fem = Peixe-palhaço
+    .masc = Peixe-palhaço
+name-body-fish_small-piranha =
     .fem = Piranha
     .masc = Piranha
-
-    .fem = Ogro
-    .masc = Ogro
-
+name-body-biped_large-ogre =
+    .fem = Ogra
+    .masc = Ogre
+name-body-biped_large-cyclops =
     .fem = Ciclope
     .masc = Ciclope
-
+name-body-biped_large-wendigo =
     .fem = Wendigo
     .masc = Wendigo
-
+name-body-biped_large-troll_cave =
     .fem = Troll da Caverna
     .masc = Troll da Caverna
-
+name-body-biped_large-troll_mountain =
     .fem = Troll da Montanha
     .masc = Troll da Montanha
-
+name-body-biped_large-troll_swamp =
     .fem = Troll do Pântano
     .masc = Troll do Pântano
-
+name-body-biped_large-dullahan =
     .fem = Dullahan
     .masc = Dullahan
-
+name-body-biped_large-werewolf =
     .fem = Lobisomem
     .masc = Lobisomem
-
+name-body-biped_large-saurok_occult =
     .fem = Saurok Ocultista
     .masc = Saurok Ocultista
-
-    .fem = Saurok Poderosa
+name-body-biped_large-saurok_mighty =
+    .fem = Saurok Poderoso
     .masc = Saurok Poderoso
-
-    .fem = Saurok Astuta
+name-body-biped_large-saurok_sly =
+    .fem = Saurok Astuto
     .masc = Saurok Astuto
-
+name-body-biped_large-mindflayer =
     .fem = Devoradora de Mentes
     .masc = Devorador de Mentes
-
+name-body-biped_large-minotaur =
     .fem = Minotauro
     .masc = Minotauro
-
-    .fem = Guerreira da Maré
-    .masc = Guerreiro da Maré
-
+name-body-biped_large-tidalwarrior =
+    .fem = Guerreira das Marés
+    .masc = Guerreiro das Marés
+name-body-biped_large-yeti =
     .fem = Yeti
     .masc = Yeti
-
+name-body-biped_large-harvester =
     .fem = Ceifadora
     .masc = Ceifador
-
+name-body-biped_large-oni_blue =
     .fem = Oni Azul
     .masc = Oni Azul
-
+name-body-biped_large-oni_red =
     .fem = Oni Vermelho
     .masc = Oni Vermelho
-
+name-body-biped_large-cultist_warlord =
     .fem = Senhora da Guerra Cultista
     .masc = Senhor da Guerra Cultista
-
+name-body-biped_large-cultist_warlock =
     .fem = Bruxa Cultista
     .masc = Bruxo Cultista
-
-    .fem = Bruta Casca
+name-body-biped_large-husk_brute =
+    .fem = Bruto Casca
     .masc = Bruto Casca
-
+name-body-biped_large-tursus =
     .fem = Tursus
     .masc = Tursus
-
+name-body-biped_large-gigas_frost =
     .fem = Gigas de Gelo
     .masc = Gigas de Gelo
-
+name-body-biped_large-gigas_fire =
     .fem = Gigas de Fogo
     .masc = Gigas de Fogo
-
+name-body-biped_large-adlet_elder =
     .fem = Anciã Adlet
     .masc = Ancião Adlet
-
-    .fem = Bispo do Mar
+name-body-biped_large-sea_bishop =
+    .fem = Bispa do Mar
     .masc = Bispo do Mar
-
+name-body-biped_large-haniwa_general =
     .fem = General Haniwa
     .masc = General Haniwa
-
-    .fem = Sitiadora de Terracota
-    .masc = Sitiador de Terracota
-
+name-body-biped_large-terracotta_besieger =
+    .fem = Cerco de Terracota
+    .masc = Cerco de Terracota
+name-body-biped_large-terracotta_demolisher =
     .fem = Demolidora de Terracota
     .masc = Demolidor de Terracota
-
+name-body-biped_large-terracotta_punisher =
     .fem = Punidora de Terracota
     .masc = Punidor de Terracota
-
+name-body-biped_large-terracotta_pursuer =
     .fem = Perseguidora de Terracota
     .masc = Perseguidor de Terracota
-
-    .fem = Guardã da Maldição
+name-body-biped_large-cursekeeper =
+    .fem = Guardiã da Maldição
     .masc = Guardião da Maldição
-
+name-body-biped_large-forgemaster =
     .fem = Mestra Forjadora
     .masc = Mestre Forjador
-
+name-body-biped_large-strigoi =
     .fem = Strigoi
     .masc = Strigoi
-
+name-body-biped_large-executioner =
     .fem = Carrasca
     .masc = Carrasco
-
-    .fem = Gnomo
+name-body-biped_small-gnome =
+    .fem = Gnoma
     .masc = Gnomo
-
+name-body-biped_small-sahagin =
     .fem = Sahagin
     .masc = Sahagin
-
+name-body-biped_small-adlet =
     .fem = Adlet
     .masc = Adlet
-
+name-body-biped_small-gnarling =
     .fem = Gnarling
     .masc = Gnarling
-
-    .fem = Mandragora
-    .masc = Mandragora
-
+name-body-biped_small-mandragora =
+    .fem = Mandrágora
+    .masc = Mandrágora
+name-body-biped_small-kappa =
     .fem = Kappa
     .masc = Kappa
-
-    .fem = Cactid
-    .masc = Cactid
-
+name-body-biped_small-cactid =
+    .fem = Cactídeo
+    .masc = Cactídeo
+name-body-biped_small-gnoll =
     .fem = Gnoll
     .masc = Gnoll
-
+name-body-biped_small-haniwa =
     .fem = Haniwa
     .masc = Haniwa
-
-    .fem = Myrmidon
-    .masc = Myrmidon
-
-    .fem = Cultista Casca
-    .masc = Cultista Casca
-
+name-body-biped_small-myrmidon =
+    .fem = Mirmidão
+    .masc = Mirmidão
+name-body-biped_small-husk =
+    .fem = Casca Cultista
+    .masc = Casca Cultista
+name-body-biped_small-boreal =
     .fem = Guerreira Boreal
     .masc = Guerreiro Boreal
-
+name-body-biped_small-ashen =
     .fem = Guerreira Cinzenta
     .masc = Guerreiro Cinzento
-
+name-body-biped_small-bushly =
     .fem = Bushly
     .masc = Bushly
-
+name-body-biped_small-irrwurz =
     .fem = Irrwurz
     .masc = Irrwurz
-
+name-body-biped_small-iron_dwarf =
     .fem = Anã de Ferro
     .masc = Anão de Ferro
-
-    .fem = Guardião da Chama
+name-body-biped_small-flamekeeper =
+    .fem = Guardiã da Chama
     .masc = Guardião da Chama
-
+name-body-biped_small-shamanic_spirit =
     .fem = Espírito Xamânico
     .masc = Espírito Xamânico
-
+name-body-biped_small-jiangshi =
     .fem = Jiangshi
     .masc = Jiangshi
-
+name-body-biped_small-treasure_egg =
     .fem = Ovo do Tesouro
     .masc = Ovo do Tesouro
-
+name-body-biped_small-gnarling_chieftain =
     .fem = Chefe Gnarling
     .masc = Chefe Gnarling
-
-    .fem = Herdeira da Lua Sangrenta
-    .masc = Herdeira da Lua Sangrenta
-
+name-body-biped_small-bloodmoon_heiress =
+    .fem = Herdeira da Lua de Sangue
+    .masc = Herdeira da Lua de Sangue
+name-body-biped_small-bloodservant =
     .fem = Serva de Sangue
     .masc = Servo de Sangue
-
-    .fem = Arlequim
+name-body-biped_small-harlequin =
+    .fem = Arlequina
     .masc = Arlequim
-
-    .fem = Capanga Goblin
-    .masc = Capanga Goblin
-
+name-body-biped_small-goblin_thug =
+    .fem = Bandida Goblin
+    .masc = Bandido Goblin
+name-body-biped_small-goblin_chucker =
     .fem = Arremessadora Goblin
     .masc = Arremessador Goblin
-
-    .fem = Marginal Goblin
-    .masc = Marginal Goblin
-
+name-body-biped_small-goblin_ruffian =
+    .fem = Brigona Goblin
+    .masc = Brigão Goblin
+name-body-biped_small-green_legoom =
     .fem = Legoom Verde
     .masc = Legoom Verde
-
+name-body-biped_small-ochre_legoom =
     .fem = Legoom Ocre
     .masc = Legoom Ocre
-
-    .fem = Legoom Roxa
+name-body-biped_small-purple_legoom =
+    .fem = Legoom Roxo
     .masc = Legoom Roxo
-
-    .fem = Legoom Vermelha
+name-body-biped_small-red_legoom =
+    .fem = Legoom Vermelho
     .masc = Legoom Vermelho
-
-    .fem = Legoom Sombra
-    .masc = Legoom Sombra
-
+name-body-biped_small-umber_legoom =
+    .fem = Legoom Âmbar
+    .masc = Legoom Âmbar
+name-body-golem-stonegolem =
     .fem = Golem de Pedra
     .masc = Golem de Pedra
-
+name-body-golem-treant =
     .fem = Treant
     .masc = Treant
-
+name-body-golem-claygolem =
     .fem = Golem de Argila
     .masc = Golem de Argila
-
+name-body-golem-woodgolem =
     .fem = Golem de Madeira
     .masc = Golem de Madeira
-
+name-body-golem-coralgolem =
     .fem = Golem de Coral
     .masc = Golem de Coral
-
-    .fem = Guardã da Sepultura
-    .masc = Guardião da Sepultura
-
-    .fem = Efigie Antiga
-    .masc = Efigie Antiga
-
+name-body-golem-gravewarden =
+    .fem = Guardiã do Túmulo
+    .masc = Guardião do Túmulo
+name-body-golem-ancienteffigy =
+    .fem = Efígie Antiga
+    .masc = Efígie Antiga
+name-body-golem-mogwai =
     .fem = Mogwai
     .masc = Mogwai
-
+name-body-golem-irongolem =
     .fem = Golem de Ferro
     .masc = Golem de Ferro
-
+name-body-theropod-archaeos =
     .fem = Archaeos
     .masc = Archaeos
-
+name-body-theropod-odonto =
     .fem = Odonto
     .masc = Odonto
-
-    .fem = Raptor da Areia
-    .masc = Raptor da Areia
-
-    .fem = Raptor da Neve
-    .masc = Raptor da Neve
-
-    .fem = Raptor da Madeira
-    .masc = Raptor da Madeira
-
-    .fem = Lagarto Solar
-    .masc = Lagarto Solar
-
+name-body-theropod-raptor_sand =
+    .fem = Raptor das Areias
+    .masc = Raptor das Areias
+name-body-theropod-raptor_snow =
+    .fem = Raptor das Neves
+    .masc = Raptor das Neves
+name-body-theropod-raptor_wood =
+    .fem = Raptor do Bosque
+    .masc = Raptor do Bosque
+name-body-theropod-sunlizard =
+    .fem = Lagarto do Sol
+    .masc = Lagarto do Sol
+name-body-theropod-yale =
     .fem = Yale
     .masc = Yale
-
+name-body-theropod-dodarock =
     .fem = Dodarock
     .masc = Dodarock
-
+name-body-theropod-ntouka =
     .fem = Ntouka
     .masc = Ntouka
-
-    .fem = Bico-de-Machado
-    .masc = Bico-de-Machado
-
+name-body-theropod-axebeak =
+    .fem = Bico-de-machado
+    .masc = Bico-de-machado
+name-body-quadruped_low-crocodile =
     .fem = Crocodilo
     .masc = Crocodilo
-
-    .fem = Crocodilo Marinho
-    .masc = Crocodilo Marinho
-
+name-body-quadruped_low-sea_crocodile =
+    .fem = Crocodilo do Mar
+    .masc = Crocodilo do Mar
+name-body-quadruped_low-alligator =
     .fem = Jacaré
     .masc = Jacaré
-
+name-body-quadruped_low-salamander =
     .fem = Salamandra
     .masc = Salamandra
-
+name-body-quadruped_low-elbst =
     .fem = Elbst
     .masc = Elbst
-
-    .fem = Lagarto Monitor
-    .masc = Lagarto Monitor
-
+name-body-quadruped_low-monitor =
+    .fem = Monitor
+    .masc = Monitor
+name-body-quadruped_low-asp =
     .fem = Áspide
     .masc = Áspide
-
+name-body-quadruped_low-tortoise =
     .fem = Jabuti
     .masc = Jabuti
-
-    .fem = Estala-Pedra
-    .masc = Estala-Pedra
-
-    .fem = Estala-Raiz
-    .masc = Estala-Raiz
-
-    .fem = Estala-Recife
-    .masc = Estala-Recife
-
+name-body-quadruped_low-rocksnapper =
+    .fem = Pica-pedra
+    .masc = Pica-pedra
+name-body-quadruped_low-rootsnapper =
+    .fem = Pica-raiz
+    .masc = Pica-raiz
+name-body-quadruped_low-reefsnapper =
+    .fem = Pica-recife
+    .masc = Pica-recife
+name-body-quadruped_low-pangolin =
     .fem = Pangolim
     .masc = Pangolim
-
-    .fem = Devoradora de Homens
-    .masc = Devorador de Homens
-
-    .fem = Tubarão-da-Areia
-    .masc = Tubarão-da-Areia
-
+name-body-quadruped_low-maneater =
+    .fem = Devoradora
+    .masc = Devorador
+name-body-quadruped_low-sandshark =
+    .fem = Tubarão das Areias
+    .masc = Tubarão das Areias
+name-body-quadruped_low-hakulaq =
     .fem = Hakulaq
     .masc = Hakulaq
-
+name-body-quadruped_low-dagon =
     .fem = Dagon
     .masc = Dagon
-
+name-body-quadruped_low-lavadrake =
     .fem = Draco de Lava
     .masc = Draco de Lava
-
+name-body-quadruped_low-basilisk =
     .fem = Basilisco
     .masc = Basilisco
-
+name-body-quadruped_low-deadwood =
     .fem = Madeira Morta
     .masc = Madeira Morta
-
+name-body-quadruped_low-icedrake =
     .fem = Draco de Gelo
     .masc = Draco de Gelo
-
+name-body-quadruped_low-mossdrake =
     .fem = Draco Musgoso
     .masc = Draco Musgoso
-
+name-body-quadruped_low-driggle =
     .fem = Driggle
     .masc = Driggle
-
-    .fem = Língua-de-Laço
-    .masc = Língua-de-Laço
-
+name-body-quadruped_low-snaretongue =
+    .fem = Língua-armadilha
+    .masc = Língua-armadilha
+name-body-quadruped_low-hydra =
     .fem = Hidra
     .masc = Hidra
-
+name-body-arthropod-tarantula =
     .fem = Tarântula
     .masc = Tarântula
-
+name-body-arthropod-black_widow =
     .fem = Viúva Negra
     .masc = Viúva Negra
-
-    .fem = Formiga-Leão
-    .masc = Formiga-Leão
-
-    .fem = Besouro-de-Chifre
-    .masc = Besouro-de-Chifre
-
-    .fem = Besouro-da-Folha
-    .masc = Besouro-da-Folha
-
-    .fem = Besouro-Cervo
-    .masc = Besouro-Cervo
-
+name-body-arthropod-antlion =
+    .fem = Formiga-leão
+    .masc = Formiga-leão
+name-body-arthropod-horn_beetle =
+    .fem = Besouro Chifre
+    .masc = Besouro Chifre
+name-body-arthropod-leaf_beetle =
+    .fem = Besouro Folha
+    .masc = Besouro Folha
+name-body-arthropod-stag_beetle =
+    .fem = Besouro Gorgulho
+    .masc = Besouro Gorgulho
+name-body-arthropod-weevil =
     .fem = Gorgulho
     .masc = Gorgulho
-
-    .fem = Aranha-da-Caverna
-    .masc = Aranha-da-Caverna
-
-    .fem = Rastejante Derretida
-    .masc = Rastejante Derretido
-
-    .fem = Rastejante Musgosa
-    .masc = Rastejante Musgoso
-
-    .fem = Rastejante da Areia
-    .masc = Rastejante da Areia
-
+name-body-arthropod-cave_spider =
+    .fem = Aranha da Caverna
+    .masc = Aranha da Caverna
+name-body-arthropod-crawler_molten =
+    .fem = Rastejadora de Lava
+    .masc = Rastejador de Lava
+name-body-arthropod-crawler_moss =
+    .fem = Rastejadora Musgosa
+    .masc = Rastejador Musgoso
+name-body-arthropod-crawler_sand =
+    .fem = Rastejadora das Areias
+    .masc = Rastejador das Areias
+name-body-arthropod-dagonite =
     .fem = Dagonita
     .masc = Dagonita
-
-    .fem = Mosca-de-Brasa
-    .masc = Mosca-de-Brasa
-
+name-body-arthropod-emberfly =
+    .fem = Mosca-de-brasa
+    .masc = Mosca-de-brasa
+name-body-crustacean-crab =
     .fem = Caranguejo
-    .masc = Caranguejo
-
-    .fem = Caranguejo-Soldado
-    .masc = Caranguejo-Soldado
-
+    .masc = Siri
+name-body-crustacean-soldier_crab =
+    .fem = Caranguejo Soldado
+    .masc = Siri Soldado
+name-body-crustacean-karkatha =
     .fem = Karkatha
     .masc = Karkatha
-
+name-body-plugin-plugin =
     .fem = desconhecido
     .masc = desconhecido
+
+##
