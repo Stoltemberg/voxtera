@@ -1,6 +1,7 @@
 ## Regeneration
 buff-heal = Cura
     .desc = Gain health over time.
+    .stat = { $duration ->
         [1] Restores { $str_total } health points over { $duration } second.
         *[other] Restores { $str_total } health points over { $duration } seconds.
     }
@@ -9,8 +10,10 @@ buff-potion = Poção
     .desc = Drinking...
 ## Agility
 buff-agility = Agilidade
+    .desc =
         Your movement is faster,
         but you deal less damage and take more damage.
+    .stat = { $duration ->
         [1] Increases movement speed by { $strength } %.
             In return, your attack and defense decrease drastically.
             Lasts for { $duration } second.
@@ -27,18 +30,21 @@ buff-resting_heal = Cura por Descanso
 ## Energy Regen
 buff-energy_regen = Recuperação de Energia
     .desc = Faster energy regeneration.
+    .stat = { $duration ->
         [1] Restores { $str_total } energy over { $duration } second.
         *[other] Restores { $str_total } energy over { $duration } seconds.
     }
 ## Combo Generation
 buff-combo_generation = Geração de Combo
     .desc = Generates combo over time.
+    .stat = { $duration ->
         [1] Generates { $str_total } combo over { $duration } second.
         *[other] Generates { $str_total } combo over { $duration } seconds.
     }
 ## Health Increase
 buff-increase_max_health = Aumenta a Vida Máxima
     .desc = Your maximum HP is increased.
+    .stat = { $duration ->
         [1] Raises maximum health
             by { $strength }.
             Lasts for { $duration } second.
@@ -49,6 +55,7 @@ buff-increase_max_health = Aumenta a Vida Máxima
 ## Energy Increase
 buff-increase_max_energy = Aumenta a Energia Máxima
     .desc = Your maximum energy is increased.
+    .stat = { $duration ->
         [1] Raises maximum energy
             by { $strength }.
             Lasts for { $duration } second.
@@ -59,6 +66,7 @@ buff-increase_max_energy = Aumenta a Energia Máxima
 ## Invulnerability
 buff-invulnerability = Invulnerabilidade
     .desc = You cannot be damaged by any attack.
+    .stat = { $duration ->
         [1] Grants invulnerability.
             Lasts for { $duration } second.
         *[other] Grants invulnerability.
@@ -106,6 +114,7 @@ buff-parried = Aparado
 ## Potion sickness
 buff-potionsickness = Enjoo de Poção
     .desc = Potions have less positive effect on you after recently consuming a potion.
+    .stat = { $duration ->
         [1] Decreases the positive effects of
             subsequent potions by { $strength } %.
             Lasts for { $duration } second.
