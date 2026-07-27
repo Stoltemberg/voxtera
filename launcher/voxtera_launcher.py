@@ -4,11 +4,14 @@ Voxtera Game Launcher
 Downloads updates from GitHub releases and launches the game.
 """
 
+import hashlib
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from urllib.request import urlopen, Request
@@ -86,7 +89,8 @@ def api_get(url, timeout=30):
     with urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
-def download_file(url, dest, progress_cb=None):
+def _download_file_once(url, dest, progress_cb=None):
+    """Single download attempt. Raises on any network/IO error."""
     req = Request(url, headers={"User-Agent": "VoxteraLauncher"})
     with urlopen(req, timeout=120) as resp:
         total = int(resp.headers.get("Content-Length", 0))
@@ -102,6 +106,45 @@ def download_file(url, dest, progress_cb=None):
                 if progress_cb:
                     progress_cb(downloaded, total)
 
+def download_file(url, dest, progress_cb=None, status_cb=None):
+    """
+    Download with retry: up to 3 attempts, 5s pause between attempts.
+    Catches URLError, socket.timeout and other transient network errors.
+    status_cb(attempt, max_attempts) is called before each attempt so the
+    UI can show "Tentativa X/3".
+    """
+    max_attempts = 3
+    last_exc = None
+    for attempt in range(1, max_attempts + 1):
+        if status_cb:
+            status_cb(attempt, max_attempts)
+        try:
+            _download_file_once(url, dest, progress_cb)
+            return  # success
+        except (URLError, HTTPError, socket.timeout, ConnectionError, TimeoutError) as e:
+            last_exc = e
+            # Clean up partial file before retrying
+            try:
+                if os.path.exists(dest):
+                    os.remove(dest)
+            except OSError:
+                pass
+            if attempt < max_attempts:
+                time.sleep(5)
+            else:
+                raise
+        except Exception as e:
+            # Unexpected error — clean up and re-raise immediately
+            try:
+                if os.path.exists(dest):
+                    os.remove(dest)
+            except OSError:
+                pass
+            raise
+    # Should not reach here, but just in case
+    if last_exc:
+        raise last_exc
+
 def parse_version(v):
     if not v:
         return (0,)
@@ -110,6 +153,46 @@ def parse_version(v):
         return tuple(int(x) for x in v.split("."))
     except ValueError:
         return (v,)
+
+# ── Manifest / Integrity ───────────────────────────────────────────────────────
+
+def compute_sha256(path, progress_cb=None, chunk_size=65536):
+    """Compute SHA-256 of a file, optionally reporting bytes processed."""
+    h = hashlib.sha256()
+    processed = 0
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+            processed += len(chunk)
+            if progress_cb:
+                progress_cb(processed)
+    return h.hexdigest()
+
+def fetch_manifest(manifest_url):
+    """Download and parse the manifest JSON for a release."""
+    data = api_get(manifest_url)
+    return data
+
+def find_manifest_url(release):
+    """
+    Locate the manifest asset URL in a GitHub release.
+    Looks for an asset named manifest-v{version}.json, falls back to any
+    asset starting with 'manifest-' and ending with '.json'.
+    """
+    tag = release.get("tag_name", "").lstrip("v")
+    expected = f"manifest-v{tag}.json"
+    for asset in release.get("assets", []):
+        if asset["name"] == expected:
+            return asset["browser_download_url"]
+    # Fallback: any manifest-*.json asset
+    for asset in release.get("assets", []):
+        name = asset["name"]
+        if name.startswith("manifest-") and name.endswith(".json"):
+            return asset["browser_download_url"]
+    return None
 
 # ── Main Application ───────────────────────────────────────────────────────────
 
@@ -124,6 +207,7 @@ class VoxteraLauncher(tk.Tk):
         self.cfg = load_config()
         self.latest_version = None
         self.download_url = None
+        self.manifest_url = None
         self._downloading = False
 
         self._build_ui()
@@ -202,8 +286,14 @@ class VoxteraLauncher(tk.Tk):
         self.update_btn = tk.Button(main, text="⟳  ATUALIZAR", bg=ACCENT,
                                      fg=TEXT_PRIMARY, activebackground=ACCENT_HOVER,
                                      command=self._update, **btn_style)
-        self.update_btn.pack(pady=(0, 15))
+        self.update_btn.pack(pady=(0, 8))
         self.update_btn.config(state="disabled")
+
+        self.repair_btn = tk.Button(main, text="✦  REPARAR", bg=ACCENT,
+                                     fg=TEXT_PRIMARY, activebackground=ACCENT_HOVER,
+                                     command=self._repair, **btn_style)
+        self.repair_btn.pack(pady=(0, 15))
+        self.repair_btn.config(state="disabled")
 
         # ── Install dir ────────────────────────────────────────────────────────
         dir_frame = tk.Frame(main, bg=BG_CARD, highlightbackground=BORDER,
@@ -270,6 +360,7 @@ class VoxteraLauncher(tk.Tk):
                 if asset["name"].endswith(".zip"):
                     self.download_url = asset["browser_download_url"]
                     break
+            self.manifest_url = find_manifest_url(release)
 
             local_ver = self.cfg.get("installed_version")
             if self.download_url:
@@ -277,12 +368,14 @@ class VoxteraLauncher(tk.Tk):
                     self.after(0, lambda: self._set_status(
                         f"✓ Atualizado ({self.latest_version})", GREEN))
                     self.after(0, lambda: self.play_btn.config(state="normal"))
+                    self.after(0, lambda: self.repair_btn.config(state="normal"))
                 else:
                     self.after(0, lambda: self._set_status(
                         f"Nova versão: {self.latest_version}", ACCENT))
                     self.after(0, lambda: self.update_btn.config(state="normal"))
                     if self._is_installed():
                         self.after(0, lambda: self.play_btn.config(state="normal"))
+                        self.after(0, lambda: self.repair_btn.config(state="normal"))
 
         except Exception as e:
             self.after(0, lambda: self._set_status(f"Erro: {str(e)[:50]}", ACCENT))
@@ -295,16 +388,36 @@ class VoxteraLauncher(tk.Tk):
     def _update(self):
         if self._downloading or not self.download_url:
             return
-        self._downloading = True
-        self.update_btn.config(state="disabled", text="BAIXANDO...")
-        self.play_btn.config(state="disabled")
-        threading.Thread(target=self._do_update, daemon=True).start()
+        self._start_download(force=False)
 
-    def _do_update(self):
+    def _repair(self):
+        """Force reinstall of the current/latest version (same version)."""
+        if self._downloading or not self.download_url:
+            return
+        if not messagebox.askyesno(
+                "Reparar instalação",
+                "Isto vai reinstalar a versão atual, sobrescrevendo os arquivos do jogo.\n\nContinuar?"):
+            return
+        self._start_download(force=True)
+
+    def _start_download(self, force=False):
+        if self._downloading or not self.download_url:
+            return
+        self._downloading = True
+        verb = "REINSTALANDO" if force else "BAIXANDO"
+        self.update_btn.config(state="disabled", text=verb if not force else "⟳  ATUALIZAR")
+        self.repair_btn.config(state="disabled", text="REINSTALANDO...")
+        self.play_btn.config(state="disabled")
+        threading.Thread(target=self._do_install, args=(force,), daemon=True).start()
+
+    def _do_install(self, force=False):
+        """Shared install/update logic. If force=True, reinstall same version."""
         try:
             install_dir = self.cfg["install_dir"]
             os.makedirs(install_dir, exist_ok=True)
             zip_path = os.path.join(install_dir, "voxtera_update.zip")
+
+            target_version = self.latest_version
 
             def progress(downloaded, total):
                 if total > 0:
@@ -315,9 +428,68 @@ class VoxteraLauncher(tk.Tk):
                     self.after(0, lambda: self.progress_label.config(
                         text=f"{mb:.1f} / {total_mb:.1f} MB ({pct:.0f}%)"))
 
-            self.after(0, lambda: self._set_status("Baixando...", TEXT_SECONDARY))
-            download_file(self.download_url, zip_path, progress)
+            def download_status(attempt, max_attempts):
+                self.after(0, lambda: self._set_status(
+                    f"Baixando... (Tentativa {attempt}/{max_attempts})", TEXT_SECONDARY))
+                self.after(0, lambda: self.progress_label.config(
+                    text=f"Tentativa {attempt}/{max_attempts}"))
 
+            self.after(0, lambda: self.progress.config(mode="determinate", value=0))
+            self.after(0, lambda: self.progress_label.config(text=""))
+            self.after(0, lambda: self._set_status("Baixando...", TEXT_SECONDARY))
+            download_file(self.download_url, zip_path, progress, status_cb=download_status)
+
+            # ── SHA-256 verification via manifest ────────────────────────────────
+            expected_sha = None
+            if self.manifest_url:
+                self.after(0, lambda: self._set_status("Verificando integridade...", TEXT_SECONDARY))
+                self.after(0, lambda: self.progress.config(mode="indeterminate"))
+                self.after(0, lambda: self.progress.start(15))
+                try:
+                    manifest = fetch_manifest(self.manifest_url)
+                    expected_sha = (manifest.get("zip_sha256") or "").lower().strip()
+                except Exception as me:
+                    self.after(0, lambda: self.progress.stop())
+                    self.after(0, lambda: self.progress.config(mode="determinate", value=0))
+                    raise RuntimeError(f"Falha ao obter manifest: {str(me)[:80]}")
+
+                if not expected_sha:
+                    self.after(0, lambda: self.progress.stop())
+                    self.after(0, lambda: self.progress.config(mode="determinate", value=0))
+                    raise RuntimeError("Manifest sem campo zip_sha256")
+
+                self.after(0, lambda: self.progress.stop())
+                self.after(0, lambda: self.progress.config(mode="determinate"))
+                self.after(0, lambda: self._set_status(
+                    "Calculando SHA-256...", TEXT_SECONDARY))
+
+                zip_size = os.path.getsize(zip_path)
+                def hash_progress(processed):
+                    if zip_size > 0:
+                        pct = (processed / zip_size) * 100
+                        self.after(0, lambda p=pct: self.progress.config(value=p))
+
+                actual_sha = compute_sha256(zip_path, hash_progress)
+
+                if actual_sha.lower() != expected_sha:
+                    try:
+                        os.remove(zip_path)
+                    except OSError:
+                        pass
+                    self.after(0, lambda: self.progress.config(value=0))
+                    raise RuntimeError(
+                        f"SHA-256 não confere!\n"
+                        f"  Esperado: {expected_sha[:16]}...\n"
+                        f"  Obtido:   {actual_sha[:16]}...\n"
+                        f"O arquivo pode estar corrompido.")
+                self.after(0, lambda: self._set_status(
+                    "✓ Integridade verificada", GREEN))
+            else:
+                # No manifest found — proceed but warn
+                self.after(0, lambda: self._set_status(
+                    "⚠ Sem manifest (integridade não verificada)", ACCENT))
+
+            # ── Extract ──────────────────────────────────────────────────────────
             self.after(0, lambda: self._set_status("Extraindo...", TEXT_SECONDARY))
             self.after(0, lambda: self.progress.config(mode="indeterminate"))
             self.after(0, lambda: self.progress.start(15))
@@ -326,22 +498,32 @@ class VoxteraLauncher(tk.Tk):
                 zf.extractall(install_dir)
             os.remove(zip_path)
 
-            self.cfg["installed_version"] = self.latest_version
+            self.cfg["installed_version"] = target_version
             save_config(self.cfg)
 
             self.after(0, lambda: self.progress.stop())
             self.after(0, lambda: self.progress.config(mode="determinate", value=100))
             self.after(0, lambda: self.progress_label.config(text=""))
             self.after(0, lambda: self._set_status(
-                f"✓ Instalado ({self.latest_version})", GREEN))
+                f"✓ Instalado ({target_version})", GREEN))
             self.after(0, lambda: self.local_ver_label.config(
-                text=f"Instalado: {self.latest_version}"))
+                text=f"Instalado: {target_version}"))
             self.after(0, lambda: self.play_btn.config(state="normal"))
             self.after(0, lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="disabled"))
+            self.after(0, lambda: self.repair_btn.config(text="✦  REPARAR", state="normal"))
 
         except Exception as e:
-            self.after(0, lambda: self._set_status(f"Erro: {str(e)[:50]}", ACCENT))
+            err_msg = str(e)[:120]
+            self.after(0, lambda: self._set_status(f"Erro: {err_msg}", ACCENT))
+            self.after(0, lambda: messagebox.showerror("Erro", str(e)))
             self.after(0, lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="normal"))
+            self.after(0, lambda: self.repair_btn.config(text="✦  REPARAR", state="normal"))
+            try:
+                self.after(0, lambda: self.progress.stop())
+                self.after(0, lambda: self.progress.config(mode="determinate", value=0))
+                self.after(0, lambda: self.progress_label.config(text=""))
+            except Exception:
+                pass
         finally:
             self._downloading = False
 
