@@ -23,6 +23,7 @@ widget_ids! {
 pub struct AdminPanel<'a> {
     #[conrod(common_builder)]
     common: widget::CommonBuilder,
+    #[allow(dead_code)]
     imgs: &'a Imgs,
     fonts: &'a Fonts,
     i18n: &'a Localization,

@@ -300,6 +300,7 @@ pub fn register_hit(
 
 /// Convenience: register a hit from a 3D world-space delta (e.g.
 /// `attacker_pos - player_pos`) using the camera's horizontal forward vector.
+#[allow(dead_code)]
 pub fn register_hit_3d(
     indicators: &mut VecDeque<HitIndicator>,
     delta_3d: Vec2<f32>,
