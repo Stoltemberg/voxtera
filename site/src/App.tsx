@@ -1,10 +1,50 @@
+import { Fragment } from "react";
 import { DOWNLOAD_URL } from "./download";
 
 const startSteps = [
-  ["01", "Baixe o launcher", "Um único download abre o caminho para sua próxima aventura."],
-  ["02", "Instale em poucos cliques", "O launcher cuida da instalação e das atualizações para você."],
-  ["03", "Entre no mundo", "Escolha seu rumo e dê o primeiro passo quando estiver pronto."],
+  {
+    number: "01",
+    title: "Baixe o launcher",
+    text: "Um único download abre o caminho para sua próxima aventura.",
+    image: "/images/voxtera-step-chest.png",
+    alt: "Baú voxel do launcher",
+  },
+  {
+    number: "02",
+    title: "Instale em poucos cliques",
+    text: "O launcher cuida da instalação e das atualizações para você.",
+    image: "/images/voxtera-step-portal.png",
+    alt: "Portal voxel para instalar o jogo",
+  },
+  {
+    number: "03",
+    title: "Entre no mundo",
+    text: "Escolha seu rumo e dê o primeiro passo quando estiver pronto.",
+    image: "/images/voxtera-step-sword-shield.png",
+    alt: "Espada e escudo voxel para entrar em Voxtera",
+  },
 ];
+
+function BuildIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 48 48"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m8 40 13-13" />
+      <path d="m14 10 4-4 12 12-4 4" />
+      <path d="m10 14 4-4 8 8-4 4" />
+      <path d="m25 8 15 15" />
+      <path d="m30 35 8 8" />
+      <path d="m20 25 10 10" />
+    </svg>
+  );
+}
 
 export function App() {
   return (
@@ -54,29 +94,43 @@ export function App() {
             </div>
             <img src="/images/ruins-adventure.jpg" alt="Grupo em combate contra criaturas em ruínas vulcânicas de Voxtera" />
           </article>
+
+          <article className="editorial editorial-build page-width" aria-labelledby="build-title">
+            <div className="editorial-build-copy">
+              <BuildIcon />
+              <h3 id="build-title">Construa</h3>
+              <div className="ornament" aria-hidden="true" />
+              <p>Erga cidades, fortalezas e fazendas. Use blocos, recursos e sua criatividade para transformar o mundo do seu jeito.</p>
+            </div>
+            <img src="/images/voxtera-build-village.png" alt="Vila voxel ensolarada para construir em Voxtera" />
+          </article>
         </section>
 
         <section id="start" className="start section page-width" aria-labelledby="start-title">
           <div className="start-heading">
-            <h2 id="start-title">Comece em minutos</h2>
+            <h2 id="start-title">Como começar</h2>
             <p>Sem complicação: o launcher prepara o caminho para você entrar no jogo.</p>
           </div>
           <ol className="steps">
-            {startSteps.map(([number, title, text]) => (
-              <li key={number}>
-                <span className="step-number">{number}</span>
-                <h3>{title}</h3>
-                <p>{text}</p>
-              </li>
+            {startSteps.map(({ number, title, text, image, alt }, index) => (
+              <Fragment key={number}>
+                <li>
+                  <span className="step-number">{number}</span>
+                  <img src={image} alt={alt} />
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </li>
+                {index < startSteps.length - 1 && <span className="steps-path" aria-hidden="true" />}
+              </Fragment>
             ))}
           </ol>
         </section>
 
         <section className="download-band" aria-labelledby="download-title">
-          <img src="/images/ruins-adventure.jpg" alt="" aria-hidden="true" />
+          <img src="/images/voxtera-closing-valley.png" alt="Vale voxel com aventureiro e lobo" />
           <div className="download-band-shade" aria-hidden="true" />
           <div className="page-width download-band-content">
-            <h2 id="download-title">Sua aventura começa agora.</h2>
+            <h2 id="download-title">Pronto para começar sua aventura?</h2>
             <p>Baixe o launcher e encontre seu próprio caminho em Voxtera.</p>
             <a className="button button-primary" href={DOWNLOAD_URL}>Baixar launcher para Windows (.exe)</a>
           </div>

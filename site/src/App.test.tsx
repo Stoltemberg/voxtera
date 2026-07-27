@@ -60,4 +60,16 @@ describe("App", () => {
       expect(link.href).not.toContain("github.com");
     });
   });
+
+  it("renders the approved build and onboarding visual language", () => {
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "Construa" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Como começar" })).toBeInTheDocument();
+    expect(screen.getByAltText("Vila voxel ensolarada para construir em Voxtera")).toHaveAttribute("src", "/images/voxtera-build-village.png");
+    expect(screen.getByAltText("Baú voxel do launcher")).toHaveAttribute("src", "/images/voxtera-step-chest.png");
+    expect(screen.getByAltText("Portal voxel para instalar o jogo")).toHaveAttribute("src", "/images/voxtera-step-portal.png");
+    expect(screen.getByAltText("Espada e escudo voxel para entrar em Voxtera")).toHaveAttribute("src", "/images/voxtera-step-sword-shield.png");
+    expect(screen.getByAltText("Vale voxel com aventureiro e lobo")).toHaveAttribute("src", "/images/voxtera-closing-valley.png");
+  });
 });
