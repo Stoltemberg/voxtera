@@ -48,7 +48,6 @@ hud-map-chapel_site = Capela Marítima
 hud-map-placed_by = Marcado por { $name }
 hud-map-adlet = Fortaleza Adlet
 hud-map-terracotta = Ruínas de Terracota
-hud-map-df_mine = Mina
 hud-map-haniwa = Catacumba Haniwa
 hud-map-unknown = Desconhecido
 hud-map-cultist = Masmorra Cultista
