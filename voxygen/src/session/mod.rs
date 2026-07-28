@@ -1361,10 +1361,11 @@ impl PlayState for SessionState {
                         },
                     },
 
-                    // TODO: Localise
+                    // Localised: the content travels as a Fluent key and is rendered by the
+                    // client in the language the player selected in their settings.
                     Event::ScreenshotMessage(screenshot_msg) => self
                         .hud
-                        .new_message(ChatType::CommandInfo.into_plain_msg(screenshot_msg)),
+                        .new_message(ChatType::CommandInfo.into_msg(screenshot_msg)),
 
                     Event::Zoom(delta) if self.zoom_lock => {
                         // only fire this Hud event when player has "intent" to zoom

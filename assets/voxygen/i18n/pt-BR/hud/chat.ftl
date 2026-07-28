@@ -92,3 +92,19 @@ hud-loot-pickup-msg = { $amount ->
 
 hud-chat-singleplayer-motd1 = Um mundo inteiro só seu! Hora de espreguiçar...
 hud-chat-singleplayer-motd2 = Como está a serenidade?
+
+# Mensagens de sistema sobre comandos do chat. Acompanha o idioma selecionado pelo jogador
+# nas configurações do jogo, independentemente da localidade do servidor.
+hud-chat-meta-group-join-hint = Digite /g ou /group para conversar com os membros do seu grupo.
+hud-chat-meta-group-joined = [{ $alias }] entrou no grupo.
+hud-chat-meta-group-left = [{ $alias }] saiu do grupo.
+hud-chat-meta-faction-joined = [{ $alias }] entrou na facção ({ $faction }).
+hud-chat-meta-faction-left = [{ $alias }] saiu da facção ({ $faction }).
+hud-chat-meta-screenshot-taken = Captura de tela salva em { $path }.
+hud-chat-meta-screenshot-failed = Não foi possível salvar a captura de tela.
+hud-chat-meta-screenshot-folder-failed = Não foi possível criar a pasta para capturas de tela.
+hud-chat-meta-screenshot-error = Erro ao gerar captura de tela: { $error }.
+hud-chat-meta-server-saved = Estado do servidor salvo.
+hud-chat-meta-time-too-long = O valor de tempo selecionado é muito grande ou muito pequeno.
+hud-chat-meta-not-a-positive-number = Não é um número positivo.
+hud-chat-meta-not-an-integer = Não é um número inteiro.

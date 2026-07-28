@@ -2948,20 +2948,26 @@ impl Client {
                                 .values()
                                 .any(|r| !matches!(r, group::Role::Pet))
                         {
-                            frontend_events
-                                // TODO: localise
-                                .push(Event::Chat(comp::ChatType::Meta.into_plain_msg(
-                                    "Type /g or /group to chat with your group members",
-                                )));
+                            // Localised: the message content travels as a Fluent key and is
+                            // resolved by the client in its own selected language.
+                            frontend_events.push(Event::Chat(comp::ChatType::Meta.into_msg(
+                                Content::localized("hud-chat-meta-group-join-hint"),
+                            )));
                         }
                         if let Some(player_info) = self.player_list.get(&uid) {
+                            #[expect(deprecated, reason = "i18n alias")]
+                            let alias =
+                                self.personalize_alias(uid, player_info.player_alias.clone());
                             frontend_events.push(Event::Chat(
-                                // TODO: localise, uses deprecated personalize_alias
-                                #[expect(deprecated, reason = "i18n alias")]
-                                comp::ChatType::GroupMeta("Group".into()).into_plain_msg(format!(
-                                    "[{}] joined group",
-                                    self.personalize_alias(uid, player_info.player_alias.clone())
-                                )),
+                                comp::ChatType::GroupMeta("Group".into()).into_msg(
+                                    Content::localized_with_args(
+                                        "hud-chat-meta-group-joined",
+                                        [(
+                                            "alias",
+                                            common_i18n::LocalizationArg::from(alias),
+                                        )],
+                                    ),
+                                ),
                             ));
                         }
                         if self.group_members.insert(uid, role) == Some(role) {
@@ -2974,13 +2980,19 @@ impl Client {
                     },
                     Removed(uid) => {
                         if let Some(player_info) = self.player_list.get(&uid) {
+                            #[expect(deprecated, reason = "i18n alias")]
+                            let alias =
+                                self.personalize_alias(uid, player_info.player_alias.clone());
                             frontend_events.push(Event::Chat(
-                                // TODO: localise, uses deprecated personalize_alias
-                                #[expect(deprecated, reason = "i18n alias")]
-                                comp::ChatType::GroupMeta("Group".into()).into_plain_msg(format!(
-                                    "[{}] left group",
-                                    self.personalize_alias(uid, player_info.player_alias.clone())
-                                )),
+                                comp::ChatType::GroupMeta("Group".into()).into_msg(
+                                    Content::localized_with_args(
+                                        "hud-chat-meta-group-left",
+                                        [(
+                                            "alias",
+                                            common_i18n::LocalizationArg::from(alias),
+                                        )],
+                                    ),
+                                ),
                             ));
                             frontend_events.push(Event::MapMarker(
                                 comp::MapMarkerUpdate::GroupMember(uid, MapMarkerChange::Remove),

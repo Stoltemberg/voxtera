@@ -1147,7 +1147,7 @@ fn handle_set_body_type(
                 all_types: impl IntoIterator<Item = B>,
             ) -> CmdResult<B> {
                 FromStr::from_str(input).map_err(|_| {
-                    Content::localized_with_args("cmd-set_body_type-not_found", [(
+                    Content::localized_with_args("command-set_body_type-not_found", [(
                         "options",
                         all_types
                             .into_iter()
@@ -1266,13 +1266,13 @@ fn handle_set_body_type(
                                 }),
                             );
                     } else {
-                        return Err(Content::localized("cmd-set_body_type-not_character"));
+                        return Err(Content::localized("command-set_body_type-not_character"));
                     }
                 }
             }
             Ok(())
         } else {
-            Err(Content::localized("cmd-set_body_type-no_body"))
+            Err(Content::localized("command-set_body_type-no_body"))
         }
     } else {
         Err(action.help_content())
@@ -4426,10 +4426,18 @@ fn handle_join_faction(
                 .map(|f| f.0);
 
             if emit_join_message {
+                // Localised: the key is resolved by the client in the language the player
+                // selected in their settings.
                 server.state.send_chat(
-                    // TODO: Localise
-                    ChatType::FactionMeta(faction.clone())
-                        .into_plain_msg(format!("[{}] joined faction ({})", alias, faction)),
+                    ChatType::FactionMeta(faction.clone()).into_msg(
+                        Content::localized_with_args(
+                            "hud-chat-meta-faction-joined",
+                            [
+                                ("alias", LocalizationArg::from(alias.clone())),
+                                ("faction", LocalizationArg::from(faction.clone())),
+                            ],
+                        ),
+                    ),
                     false,
                 );
             }
@@ -4449,9 +4457,15 @@ fn handle_join_faction(
             && emit_join_message
         {
             server.state.send_chat(
-                // TODO: Localise
-                ChatType::FactionMeta(faction.clone())
-                    .into_plain_msg(format!("[{}] left faction ({})", alias, faction)),
+                ChatType::FactionMeta(faction.clone()).into_msg(
+                    Content::localized_with_args(
+                        "hud-chat-meta-faction-left",
+                        [
+                            ("alias", LocalizationArg::from(alias.clone())),
+                            ("faction", LocalizationArg::from(faction.clone())),
+                        ],
+                    ),
+                ),
                 false,
             );
         }

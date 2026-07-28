@@ -6,6 +6,7 @@ use crate::{
     ui,
 };
 use common_base::span;
+use common_i18n::{Content, LocalizationArg};
 use crossbeam_channel as channel;
 use gilrs::{Button as GilButton, EventType, Gilrs};
 use hashbrown::{HashMap, hash_set::Iter};
@@ -117,7 +118,7 @@ pub enum Event {
     /// Update of the analog inputs recognized by the game
     AnalogGameInput(AnalogGameInput),
     /// We tried to save a screenshot
-    ScreenshotMessage(String),
+    ScreenshotMessage(Content),
 }
 
 pub type MouseButton = winit::event::MouseButton;
@@ -244,8 +245,8 @@ pub struct Window {
     controller_type: ControllerType,
     last_input: LastInput,
     // Currently used to send and receive screenshot result messages
-    message_sender: channel::Sender<String>,
-    message_receiver: channel::Receiver<String>,
+    message_sender: channel::Sender<Content>,
+    message_receiver: channel::Receiver<Content>,
     // Used for screenshots & fullscreen toggle to deduplicate/postpone to after event handler
     take_screenshot: bool,
     toggle_fullscreen: bool,
@@ -328,9 +329,9 @@ impl Window {
         };
 
         let (message_sender, message_receiver): (
-            channel::Sender<String>,
-            channel::Receiver<String>,
-        ) = channel::unbounded::<String>();
+            channel::Sender<Content>,
+            channel::Receiver<Content>,
+        ) = channel::unbounded::<Content>();
 
         let scale_factor = window.scale_factor();
 
@@ -1207,7 +1208,10 @@ impl Window {
                 Ok(i) => i,
                 Err(e) => {
                     warn!(?e, "Couldn't generate screenshot");
-                    let _result = sender.send(format!("Error when generating screenshot: {}", e));
+                    let _result = sender.send(Content::localized_with_args(
+                        "hud-chat-meta-screenshot-error",
+                        [("error", LocalizationArg::from(e.to_string()))],
+                    ));
                     return;
                 },
             };
@@ -1217,7 +1221,7 @@ impl Window {
                 && let Err(e) = std::fs::create_dir_all(&path)
             {
                 warn!(?e, ?path, "Couldn't create folder for screenshot");
-                let _result = sender.send(String::from("Couldn't create folder for screenshot"));
+                let _result = sender.send(Content::localized("hud-chat-meta-screenshot-folder-failed"));
             }
             path.push(format!(
                 "screenshot_{}.png",
@@ -1229,10 +1233,15 @@ impl Window {
             // Try to save the image
             if let Err(e) = image.save(&path) {
                 warn!(?e, ?path, "Couldn't save screenshot");
-                let _result = sender.send(String::from("Couldn't save screenshot"));
+                let _result = sender.send(Content::localized("hud-chat-meta-screenshot-failed"));
             } else {
-                let _result =
-                    sender.send(format!("Screenshot saved to {}", path.to_string_lossy()));
+                let _result = sender.send(Content::localized_with_args(
+                    "hud-chat-meta-screenshot-taken",
+                    [(
+                        "path",
+                        common_i18n::LocalizationArg::from(path.to_string_lossy().into_owned()),
+                    )],
+                ));
             }
         });
     }
