@@ -1,0 +1,7 @@
+{
+  "changelog": "Correção da aba Grupo: o painel abre normalmente sem fechar o jogo.",
+  "commit": "7d7df8ffde",
+  "release_url": "https://github.com/Stoltemberg/voxtera/releases/tag/v0.3.8",
+  "version": "0.3.8",
+  "zip_sha256": "47f5c194f4372c34ed95321115dc49a6cbb6827eafe35cd75f960feced09d1e2"
+}
