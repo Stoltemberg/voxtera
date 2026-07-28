@@ -20,7 +20,7 @@ permissions:
 jobs:
   fluent-parse-and-i18n-check:
     name: Fluent parser and pt-BR integrity
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
