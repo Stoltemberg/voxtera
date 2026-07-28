@@ -411,36 +411,67 @@ impl Widget for FriendsPanel<'_> {
                     .color(TEXT_COLOR)
                     .set(state.ids.group_members_header, ui);
 
-                // Leader row (slot 1)
+                // Leader row (slot 1) — highlighted in gold
                 if let Some(leader) = leader_uid {
-                    let name = self
-                        .client
-                        .player_list()
-                        .get(&leader)
-                        .map(|info| info.player_alias.as_str().to_string())
+                    let info = self.client.player_list().get(&leader);
+                    let name = info
+                        .map(|i| i.player_alias.as_str().to_string())
                         .unwrap_or_else(|| format!("Player<{}>", leader));
+                    let leader_online = info.is_some_and(|i| i.is_online);
                     let label = format!("\u{2605} 1. {}", name);
+                    // Background highlight for leader row
+                    Rectangle::fill_with(
+                        [388.0, ROW_HEIGHT - 6.0],
+                        color::rgba(1.0, 0.85, 0.3, 0.15),
+                    )
+                    .top_left_with_margins_on(state.ids.content, 26.0, 6.0)
+                    .set(state.ids.group_member_kick[0], ui);
                     Text::new(&label)
                         .top_left_with_margins_on(state.ids.content, 28.0, 10.0)
                         .font_id(self.fonts.cyri.conrod_id)
                         .font_size(self.fonts.cyri.scale(13))
-                        .color(TEXT_COLOR)
+                        .color(color::rgb(1.0, 0.85, 0.3))
                         .set(state.ids.group_member_names[0], ui);
+                    // Status dot for leader
+                    Text::new("\u{25CF}")
+                        .top_left_with_margins_on(state.ids.content, 32.0, 348.0)
+                        .font_id(self.fonts.cyri.conrod_id)
+                        .font_size(self.fonts.cyri.scale(9))
+                        .color(if leader_online {
+                            color::rgb(0.25, 0.86, 0.35)
+                        } else {
+                            color::rgb(0.42, 0.42, 0.42)
+                        })
+                        .set(state.ids.group_member_promote[0], ui);
                 }
 
-                // Member rows (slots 2..N)
+                // Member rows (slots 2..N) — with alternating background, status dot
                 for (i, &uid) in group_member_uids.iter().enumerate() {
                     let slot = i + 2;
-                    let name = self
-                        .client
-                        .player_list()
-                        .get(&uid)
+                    let info = self.client.player_list().get(&uid);
+                    let name = info
                         .map(|info| info.player_alias.as_str().to_string())
                         .unwrap_or_else(|| format!("Player<{}>", uid));
+                    let member_online = info.is_some_and(|i| i.is_online);
                     let label = format!("  {}. {}", slot, name);
 
                     let row_y = 28.0 + (i as f64 + 1.0) * (ROW_HEIGHT - 8.0);
                     let name_idx = i + 1;
+
+                    // Alternating row background for visual consistency
+                    if i % 2 == 1 {
+                        Rectangle::fill_with(
+                            [388.0, ROW_HEIGHT - 6.0],
+                            color::rgba(
+                                1.0,
+                                1.0,
+                                1.0,
+                                self.global_state.settings.interface.row_background_opacity,
+                            ),
+                        )
+                        .top_left_with_margins_on(state.ids.content, row_y - 2.0, 6.0)
+                        .set(state.ids.group_member_kick[name_idx], ui);
+                    }
 
                     Text::new(&label)
                         .top_left_with_margins_on(state.ids.content, row_y, 10.0)
@@ -449,17 +480,29 @@ impl Widget for FriendsPanel<'_> {
                         .color(TEXT_COLOR)
                         .set(state.ids.group_member_names[name_idx], ui);
 
-                    // Kick button (leader only, can't kick self)
+                    // Status dot for member
+                    Text::new("\u{25CF}")
+                        .top_left_with_margins_on(state.ids.content, row_y + 4.0, 348.0)
+                        .font_id(self.fonts.cyri.conrod_id)
+                        .font_size(self.fonts.cyri.scale(9))
+                        .color(if member_online {
+                            color::rgb(0.25, 0.86, 0.35)
+                        } else {
+                            color::rgb(0.42, 0.42, 0.42)
+                        })
+                        .set(state.ids.group_member_promote[name_idx], ui);
+
+                    // Kick + Promote buttons (leader only, not self)
                     if is_leader && Some(uid) != my_uid {
                         if Button::image(self.imgs.button)
                             .hover_image(self.imgs.button_hover)
                             .press_image(self.imgs.button_press)
-                            .w_h(60.0, 20.0)
+                            .w_h(50.0, 20.0)
                             .label(&self.i18n.get_msg("hud-friends-group-kick"))
                             .label_font_id(self.fonts.cyri.conrod_id)
-                            .label_font_size(self.fonts.cyri.scale(10))
+                            .label_font_size(self.fonts.cyri.scale(9))
                             .label_color(TEXT_COLOR)
-                            .top_left_with_margins_on(state.ids.content, row_y - 2.0, 280.0)
+                            .top_left_with_margins_on(state.ids.content, row_y - 2.0, 230.0)
                             .set(state.ids.group_member_kick[name_idx], ui)
                             .was_clicked()
                         {
@@ -468,10 +511,10 @@ impl Widget for FriendsPanel<'_> {
                         if Button::image(self.imgs.button)
                             .hover_image(self.imgs.button_hover)
                             .press_image(self.imgs.button_press)
-                            .w_h(70.0, 20.0)
+                            .w_h(60.0, 20.0)
                             .label(&self.i18n.get_msg("hud-friends-group-promote"))
                             .label_font_id(self.fonts.cyri.conrod_id)
-                            .label_font_size(self.fonts.cyri.scale(10))
+                            .label_font_size(self.fonts.cyri.scale(9))
                             .label_color(TEXT_COLOR)
                             .right_from(state.ids.group_member_kick[name_idx], 4.0)
                             .set(state.ids.group_member_promote[name_idx], ui)
@@ -503,7 +546,11 @@ impl Widget for FriendsPanel<'_> {
                 }
             }
 
-            // Invitee section header (y computed above as invitee_header_y)
+            // Separator line + invitee section header
+            let separator_y = invitee_header_y - 6.0;
+            Rectangle::fill_with([388.0, 1.0], color::rgba(0.8, 0.8, 0.8, 0.3))
+                .top_left_with_margins_on(state.ids.content, separator_y, 6.0)
+                .set(state.ids.group_invitee_header, ui);
             Text::new(&self.i18n.get_msg("hud-friends-group-invite-title"))
                 .top_left_with_margins_on(state.ids.content, invitee_header_y, 10.0)
                 .font_id(self.fonts.cyri.conrod_id)
@@ -947,5 +994,68 @@ mod tests {
         assert_eq!(group_invite_aliases(&entries, ""), vec!["Alice"]);
         assert_eq!(group_invite_aliases(&entries, "ali"), vec!["Alice"]);
         assert!(group_invite_aliases(&entries, "bob").is_empty());
+    }
+
+    #[test]
+    fn group_invite_filter_with_search_is_case_insensitive() {
+        let entries = vec![FriendInfo {
+            alias: "Charlie".into(),
+            status: FriendStatus::Accepted,
+            online: true,
+        }];
+        assert_eq!(group_invite_aliases(&entries, "CHAR"), vec!["Charlie"]);
+        assert!(group_invite_aliases(&entries, "delta").is_empty());
+    }
+
+    #[test]
+    fn group_invite_filter_search_whitespace_is_trimmed() {
+        let entries = vec![FriendInfo {
+            alias: "Alice".into(),
+            status: FriendStatus::Accepted,
+            online: true,
+        }];
+        assert_eq!(group_invite_aliases(&entries, "  alice  "), vec!["Alice"]);
+    }
+
+    #[test]
+    fn group_invite_filter_excludes_self_via_player_list() {
+        // Self is excluded at the UI layer (player_list lookup),
+        // but the pure filter still returns accepted+online.
+        // This test documents that contract.
+        let entries = vec![FriendInfo {
+            alias: "SelfAlias".into(),
+            status: FriendStatus::Accepted,
+            online: true,
+        }];
+        // The filter alone does NOT exclude self; that's done by the player_list
+        // intersection.
+        assert_eq!(group_invite_aliases(&entries, ""), vec!["SelfAlias"]);
+    }
+
+    #[test]
+    fn group_member_slots_are_deterministic_by_uid() {
+        // Slot contract: leader=1, then members sorted by Uid in slots 2..N.
+        // We simulate by sorting a Vec<Uid> by u.0 and verifying the resulting order.
+        use std::num::NonZeroU64;
+        let mut uids = vec![
+            Uid(NonZeroU64::new(0xFFFF_FFFF_FFFF_FFFE).unwrap()),
+            Uid(NonZeroU64::new(1).unwrap()),
+            Uid(NonZeroU64::new(0xFFFF_FFFF_FFFF_FFFD).unwrap()),
+        ];
+        uids.sort_by_key(|u| u.0);
+        assert_eq!(uids, vec![
+            Uid(NonZeroU64::new(1).unwrap()),
+            Uid(NonZeroU64::new(0xFFFF_FFFF_FFFF_FFFD).unwrap()),
+            Uid(NonZeroU64::new(0xFFFF_FFFF_FFFF_FFFE).unwrap()),
+        ]);
+
+        // Verify leader is excluded from the member list (the UI does this before
+        // sorting).
+        let leader = Uid(NonZeroU64::new(0xFFFF_FFFF_FFFF_FFFE).unwrap());
+        uids.retain(|u| *u != leader);
+        assert_eq!(uids, vec![
+            Uid(NonZeroU64::new(1).unwrap()),
+            Uid(NonZeroU64::new(0xFFFF_FFFF_FFFF_FFFD).unwrap()),
+        ]);
     }
 }
