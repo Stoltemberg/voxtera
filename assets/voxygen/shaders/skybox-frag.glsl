@@ -44,7 +44,7 @@ void main() {
     vec3 wpos = cam_pos.xyz + cam_dir * dist;
 
     // Voxtera: Enhanced sky color
-    vec3 sky_col = cam_attenuation * get_sky_color(normalize(f_pos), cam_pos.xyz, wpos, 1.0, true, refractionIndex, false, 1.0);
+    vec3 sky_col = get_sky_color(normalize(f_pos), cam_pos.xyz, wpos, 1.0, true, refractionIndex, false, 1.0);
     
     // Subtle blue boost for more vibrant sky
     sky_col.b = sky_col.b * 1.05;

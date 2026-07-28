@@ -35,6 +35,9 @@ jobs:
       - name: Validate pt-BR localization before packaging
         run: cargo run -p veloren-client-i18n --features bin --bin i18n_check -- pt-BR
 
+      - name: Validate known shader regressions before packaging
+        run: python scripts/shader_regression_gate.py
+
       - name: Build release binaries
         run: cargo build --release --bin Voxtera --bin veloren-server-cli
 
