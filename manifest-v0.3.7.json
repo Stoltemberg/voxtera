@@ -1,0 +1,7 @@
+{
+  "changelog": "Correção de inicialização: o jogo volta a abrir normalmente em placas Vulkan.",
+  "commit": "9910ee06a8",
+  "release_url": "https://github.com/Stoltemberg/voxtera/releases/tag/v0.3.7",
+  "version": "0.3.7",
+  "zip_sha256": "984218a1fab7d70e9fe3ca7fe19a145f67a022a9a311839fd368a4d9eb3b1d51"
+}
