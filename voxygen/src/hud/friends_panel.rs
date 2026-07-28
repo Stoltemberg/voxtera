@@ -3,6 +3,10 @@ use super::{
 };
 use crate::{GlobalState, settings::HudPositionSettings, ui::fonts::Fonts};
 use client::Client;
+use common::{
+    comp::{group, invite::InviteKind},
+    uid::Uid,
+};
 use common_net::msg::{FriendAction, FriendInfo, FriendStatus};
 use conrod_core::{
     Color, Colorable, Labelable, Positionable, Sizeable, Widget, WidgetCommon, color,
@@ -22,6 +26,7 @@ pub enum SocialTab {
     Friends,
     Requests,
     Players,
+    Group,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,6 +50,16 @@ pub fn filter_friend_aliases<'a>(
             FriendFilter::Online => entry.online,
             FriendFilter::Offline => !entry.online,
         })
+        .filter(|entry| search.is_empty() || entry.alias.to_lowercase().contains(&search))
+        .map(|entry| entry.alias.as_str())
+        .collect()
+}
+
+pub fn group_invite_aliases<'a>(entries: &'a [FriendInfo], search: &str) -> Vec<&'a str> {
+    let search = search.trim().to_lowercase();
+    entries
+        .iter()
+        .filter(|entry| entry.status == FriendStatus::Accepted && entry.online)
         .filter(|entry| search.is_empty() || entry.alias.to_lowercase().contains(&search))
         .map(|entry| entry.alias.as_str())
         .collect()
@@ -84,6 +99,8 @@ widget_ids! {
         secondary_actions[],
         empty,
         summary,
+        group_invite_accept,
+        group_invite_decline,
         draggable_area,
     }
 }
@@ -134,7 +151,9 @@ pub enum Event {
     Close,
     Focus(widget::Id),
     FriendAction(FriendAction),
-    InviteMember(common::uid::Uid),
+    InviteMember(Uid),
+    AcceptGroupInvite,
+    DeclineGroupInvite,
     MoveSocial(Vec2<f64>),
 }
 
@@ -201,8 +220,8 @@ impl Widget for FriendsPanel<'_> {
             .color(TEXT_COLOR)
             .set(state.ids.title, ui);
 
-        if state.ids.tabs.len() < 3 {
-            state.update(|s| s.ids.tabs.resize(3, &mut ui.widget_id_generator()));
+        if state.ids.tabs.len() < 4 {
+            state.update(|s| s.ids.tabs.resize(4, &mut ui.widget_id_generator()));
         }
         let tab_data = [
             (
@@ -217,6 +236,7 @@ impl Widget for FriendsPanel<'_> {
                 SocialTab::Players,
                 self.i18n.get_msg("hud-friends-tab-players"),
             ),
+            (SocialTab::Group, self.i18n.get_msg("hud-friends-tab-group")),
         ];
         for (i, (tab, label)) in tab_data.iter().enumerate() {
             let button = Button::image(if state.tab == *tab {
@@ -224,7 +244,7 @@ impl Widget for FriendsPanel<'_> {
             } else {
                 self.imgs.button
             })
-            .w_h(124.0, 28.0)
+            .w_h(90.0, 28.0)
             .hover_image(self.imgs.button_hover)
             .press_image(self.imgs.button_press)
             .label(label)
@@ -348,10 +368,42 @@ impl Widget for FriendsPanel<'_> {
             .map(|(uid, info)| (*uid, info.player_alias.as_str()))
             .collect::<Vec<_>>();
 
+        let group_invitees = group_invite_aliases(friends, &search)
+            .into_iter()
+            .filter_map(|alias| {
+                self.client
+                    .player_list()
+                    .iter()
+                    .find(|(uid, info)| {
+                        Some(**uid) != self.client.uid()
+                            && info.is_online
+                            && info.player_alias == alias
+                            && !self.client.group_members().contains_key(*uid)
+                    })
+                    .map(|(uid, _)| (*uid, alias))
+            })
+            .collect::<Vec<_>>();
+
+        let is_group_leader_or_ungrouped = self
+            .client
+            .group_info()
+            .is_none_or(|(_, leader)| self.client.uid() == Some(leader));
+        let group_member_count = self
+            .client
+            .group_members()
+            .values()
+            .filter(|role| matches!(role, group::Role::Member))
+            .count()
+            + 1;
+        let group_has_capacity = group_member_count + self.client.pending_invites().len()
+            < self.client.max_group_size() as usize;
+        let can_invite_to_group = is_group_leader_or_ungrouped && group_has_capacity;
+
         let row_count = match state.tab {
             SocialTab::Friends => friend_aliases.len(),
             SocialTab::Requests => request_aliases.len(),
             SocialTab::Players => players.len(),
+            SocialTab::Group => group_invitees.len(),
         };
         if state.ids.rows.len() < row_count {
             state.update(|s| {
@@ -371,9 +423,11 @@ impl Widget for FriendsPanel<'_> {
                 SocialTab::Friends => friend_aliases[i],
                 SocialTab::Requests => request_aliases[i],
                 SocialTab::Players => players[i].1,
+                SocialTab::Group => group_invitees[i].1,
             };
             let player_uid = match state.tab {
                 SocialTab::Players => Some(players[i].0),
+                SocialTab::Group => Some(group_invitees[i].0),
                 _ => None,
             };
             let entry = friends.iter().find(|friend| friend.alias == alias);
@@ -402,8 +456,8 @@ impl Widget for FriendsPanel<'_> {
                 .set(state.ids.row_bgs[i], ui);
             }
 
-            let online =
-                entry.is_some_and(|friend| friend.online) || state.tab == SocialTab::Players;
+            let online = entry.is_some_and(|friend| friend.online)
+                || matches!(state.tab, SocialTab::Players | SocialTab::Group);
             Text::new("●")
                 .top_left_with_margins_on(state.ids.rows[i], 10.0, 10.0)
                 .font_id(self.fonts.cyri.conrod_id)
@@ -431,6 +485,7 @@ impl Widget for FriendsPanel<'_> {
                     self.i18n.get_msg("hud-friends-request-sent")
                 },
                 (SocialTab::Players, _, _) => self.i18n.get_msg("hud-friends-player-online"),
+                (SocialTab::Group, _, _) => self.i18n.get_msg("hud-friends-group-eligible"),
                 _ => String::new().into(),
             };
             Text::new(&status)
@@ -513,6 +568,18 @@ impl Widget for FriendsPanel<'_> {
                         }
                     }
                 },
+                (SocialTab::Group, _) if can_invite_to_group => {
+                    if let Some(uid) = player_uid {
+                        if action_button!(&self.i18n.get_msg("hud-friends-group-invite"))
+                            .middle_of(state.ids.rows[i])
+                            .x_relative(145.0)
+                            .set(state.ids.primary_actions[i], ui)
+                            .was_clicked()
+                        {
+                            events.push(Event::InviteMember(uid));
+                        }
+                    }
+                },
                 _ => {},
             }
         }
@@ -522,6 +589,7 @@ impl Widget for FriendsPanel<'_> {
                 SocialTab::Friends => "hud-friends-empty",
                 SocialTab::Requests => "hud-friends-no-requests",
                 SocialTab::Players => "hud-friends-no-players",
+                SocialTab::Group => "hud-friends-group-no-eligible",
             };
             Text::new(&self.i18n.get_msg(empty_key))
                 .mid_top_with_margin_on(state.ids.content, 32.0)
@@ -543,20 +611,65 @@ impl Widget for FriendsPanel<'_> {
             .iter()
             .filter(|friend| friend.status == FriendStatus::PendingIncoming)
             .count();
-        let summary = format!(
-            "{} {}/{}  •  {} {}",
-            self.i18n.get_msg("hud-friends-online"),
-            online_count,
-            accepted_count,
-            incoming_count,
-            self.i18n.get_msg("hud-friends-pending")
-        );
+        let summary = if state.tab == SocialTab::Group {
+            format!(
+                "{} {}/{}",
+                self.i18n.get_msg("hud-friends-group-members"),
+                group_member_count,
+                self.client.max_group_size(),
+            )
+        } else {
+            format!(
+                "{} {}/{}  •  {} {}",
+                self.i18n.get_msg("hud-friends-online"),
+                online_count,
+                accepted_count,
+                incoming_count,
+                self.i18n.get_msg("hud-friends-pending")
+            )
+        };
         Text::new(&summary)
             .bottom_left_with_margins_on(state.ids.frame, 13.0, 18.0)
             .font_id(self.fonts.cyri.conrod_id)
             .font_size(self.fonts.cyri.scale(12))
             .color(TEXT_COLOR_GREY)
             .set(state.ids.summary, ui);
+
+        if state.tab == SocialTab::Group
+            && self
+                .client
+                .invite()
+                .is_some_and(|(_, _, _, kind)| matches!(kind, InviteKind::Group))
+        {
+            if Button::image(self.imgs.button)
+                .hover_image(self.imgs.button_hover)
+                .press_image(self.imgs.button_press)
+                .w_h(76.0, 24.0)
+                .label(&self.i18n.get_msg("hud-friends-accept"))
+                .label_font_id(self.fonts.cyri.conrod_id)
+                .label_font_size(self.fonts.cyri.scale(11))
+                .label_color(TEXT_COLOR)
+                .bottom_right_with_margins_on(state.ids.frame, 12.0, 98.0)
+                .set(state.ids.group_invite_accept, ui)
+                .was_clicked()
+            {
+                events.push(Event::AcceptGroupInvite);
+            }
+            if Button::image(self.imgs.button)
+                .hover_image(self.imgs.button_hover)
+                .press_image(self.imgs.button_press)
+                .w_h(76.0, 24.0)
+                .label(&self.i18n.get_msg("hud-friends-reject"))
+                .label_font_id(self.fonts.cyri.conrod_id)
+                .label_font_size(self.fonts.cyri.scale(11))
+                .label_color(TEXT_COLOR)
+                .bottom_right_with_margins_on(state.ids.frame, 12.0, 18.0)
+                .set(state.ids.group_invite_decline, ui)
+                .was_clicked()
+            {
+                events.push(Event::DeclineGroupInvite);
+            }
+        }
 
         if self
             .global_state
@@ -633,5 +746,30 @@ mod tests {
             filter_friend_aliases(&entries, FriendFilter::All, "bo"),
             vec!["Bob"]
         );
+    }
+
+    #[test]
+    fn group_invite_filter_only_returns_online_accepted_friends() {
+        let entries = vec![
+            FriendInfo {
+                alias: "Alice".into(),
+                status: FriendStatus::Accepted,
+                online: true,
+            },
+            FriendInfo {
+                alias: "Bob".into(),
+                status: FriendStatus::Accepted,
+                online: false,
+            },
+            FriendInfo {
+                alias: "Carol".into(),
+                status: FriendStatus::PendingIncoming,
+                online: true,
+            },
+        ];
+
+        assert_eq!(group_invite_aliases(&entries, ""), vec!["Alice"]);
+        assert_eq!(group_invite_aliases(&entries, "ali"), vec!["Alice"]);
+        assert!(group_invite_aliases(&entries, "bob").is_empty());
     }
 }

@@ -3942,6 +3942,12 @@ impl Hud {
                     friends_panel::Event::InviteMember(uid) => {
                         events.push(Event::InviteMember(uid));
                     },
+                    friends_panel::Event::AcceptGroupInvite => {
+                        events.push(Event::AcceptInvite);
+                    },
+                    friends_panel::Event::DeclineGroupInvite => {
+                        events.push(Event::DeclineInvite);
+                    },
                     friends_panel::Event::MoveSocial(pos) => {
                         global_state.settings.hud_position.social = pos;
                     },
