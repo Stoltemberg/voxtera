@@ -32,6 +32,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
+      - name: Validate pt-BR localization before packaging
+        run: cargo run -p veloren-client-i18n --features bin --bin i18n_check -- pt-BR
+
       - name: Build release binaries
         run: cargo build --release --bin Voxtera --bin veloren-server-cli
 

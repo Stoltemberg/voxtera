@@ -36,11 +36,11 @@ hud-temp_quest_text =
     Whenever you feel ready, try to get even better equipment from the many challenges marked on your map!
 hud-spell = Magias
 hud-diary = Diário
-hud-free_look_indicator = Câmera livre ativada. Pressione  para desabilitar.
-{ $toggle ->
-[0] Free look active. Press { $1 } to disable.
-*[other] Free look active. Stop holding { $1 } to disable.
-}
+hud-free_look_indicator =
+    { $toggle ->
+        [0] Câmera livre ativada. Pressione { $key } para desabilitar.
+       *[other] Câmera livre ativada. Pare de segurar { $key } para desabilitar.
+    }
 hud-camera_clamp_indicator = Trava vertical de câmera ativada. Pressione { $key } para desabilitar.
 hud-auto_walk_indicator = Caminhar/Nadar automático ativado
 hud-zoom_lock_indicator-remind = Zoom travado
@@ -80,18 +80,22 @@ hud-init-stage-singleplayer = Iniciando servidor local...
 hud-init-stage-server-db-migrations = { "[" }{ -server }]: Aplicando migrações de banco de dados...
 hud-init-stage-server-db-vacuum = { "[" }{ -server }]: Limpando banco de dados...
 hud-init-stage-server-worldsim-erosion = { "[" }{ -server }]: Erosão { $percentage } %
-hud-init-stage-server-worldsim-erosion_time_left = 
-      [one] ~{ $1 } day remaining
-      *[other] ~{ $1 } days remaining
+hud-init-stage-server-worldsim-erosion_time_left =
+    .days = { $n ->
+        [one] ~{ $n } dia restante
+       *[other] ~{ $n } dias restantes
     }
-      [one] ~{ $1 } hour remaining
-      *[other] ~{ $1 } hours remaining
+    .hours = { $n ->
+        [one] ~{ $n } hora restante
+       *[other] ~{ $n } horas restantes
     }
-      [one] ~{ $1 } minute remaining
-      *[other] ~{ $1 } minutes remaining
+    .minutes = { $n ->
+        [one] ~{ $n } minuto restante
+       *[other] ~{ $n } minutos restantes
     }
-      [one] ~{ $1 } second remaining
-      *[other] ~{ $1 } seconds remaining
+    .seconds = { $n ->
+        [one] ~{ $n } segundo restante
+       *[other] ~{ $n } segundos restantes
     }
 hud-init-stage-server-worldciv-civcreate = { "[" }{ -server }]: Gerado { $generated } { $total } sem { $generated } { $total } civilizacões
 hud-init-stage-server-worldciv-site = { "[" }{ -server }]: Gerando sítios...

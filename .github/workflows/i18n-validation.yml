@@ -1,0 +1,33 @@
+name: Validate localization
+
+on:
+  pull_request:
+    paths:
+      - "assets/voxygen/i18n/**"
+      - "client/i18n/**"
+      - ".github/workflows/i18n-validation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "assets/voxygen/i18n/**"
+      - "client/i18n/**"
+      - ".github/workflows/i18n-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fluent-parse-and-i18n-check:
+    name: Fluent parser and pt-BR integrity
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-06-13-x86_64-pc-windows-msvc
+
+      - name: Parse and validate pt-BR localization
+        run: cargo run -p veloren-client-i18n --features bin --bin i18n_check -- pt-BR
