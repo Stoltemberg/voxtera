@@ -1680,7 +1680,9 @@ impl ServerEvent for ExplosionEvent {
                             .filter_map(|entity| {
                                 data.auras
                                     .get(entity)
-                                    .zip(data.positions.get(entity))
+                                    .and_then(|entity_auras| {
+                                        data.positions.get(entity).map(|pos| (entity_auras, pos))
+                                    })
                                     .and_then(|(entity_auras, pos)| {
                                         entity_auras
                                             .auras
@@ -1815,7 +1817,9 @@ impl ServerEvent for ExplosionEvent {
                             .filter_map(|entity| {
                                 data.auras
                                     .get(entity)
-                                    .zip(data.positions.get(entity))
+                                    .and_then(|entity_auras| {
+                                        data.positions.get(entity).map(|pos| (entity_auras, pos))
+                                    })
                                     .and_then(|(entity_auras, pos)| {
                                         entity_auras
                                             .auras
