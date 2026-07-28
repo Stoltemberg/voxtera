@@ -96,6 +96,39 @@ use self::{
 /// DT-independent.
 const SIMULATED_TICK_SKIP: u64 = 10;
 
+/// Daylight work windows for ordinary town professions.
+fn is_work_period(day_period: DayPeriod) -> bool {
+    matches!(day_period, DayPeriod::Morning | DayPeriod::Noon)
+}
+
+/// Civilian leisure begins after the work period and before night curfew.
+fn is_leisure_period(day_period: DayPeriod) -> bool { day_period == DayPeriod::Evening }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn work_period_covers_morning_and_noon() {
+        assert!(is_work_period(DayPeriod::Morning));
+        assert!(is_work_period(DayPeriod::Noon));
+    }
+
+    #[test]
+    fn work_period_excludes_evening_and_night() {
+        assert!(!is_work_period(DayPeriod::Evening));
+        assert!(!is_work_period(DayPeriod::Night));
+    }
+
+    #[test]
+    fn leisure_period_is_evening_only() {
+        assert!(is_leisure_period(DayPeriod::Evening));
+        assert!(!is_leisure_period(DayPeriod::Morning));
+        assert!(!is_leisure_period(DayPeriod::Noon));
+        assert!(!is_leisure_period(DayPeriod::Night));
+    }
+}
+
 pub struct NpcAi;
 
 #[derive(Clone)]
@@ -786,11 +819,6 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
         }
 
         let day_period = ctx.actor.get_day_period(ctx.time_of_day);
-        let is_weekend = (ctx.time_of_day.day() as u64).is_multiple_of(6);
-        let is_evening = day_period == DayPeriod::Evening;
-
-        let is_free_time = is_weekend || is_evening;
-
         let is_raining = ctx.system_data.weather_grid.is_raining(ctx.actor.wpos.xy());
 
         // Go to a house if it's dark
@@ -874,11 +902,11 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
             );
         }
 
-        // Go do something fun on evenings and holidays, or on random days.
+        // Civilian leisure is reserved for the evening; work remains predictable by day.
         if
             // Ain't no rest for the wicked
             !matches!(ctx.actor.profession(), Some(Profession::Guard | Profession::Chef))
-            && (matches!(day_period, DayPeriod::Evening) || is_free_time || ctx.rng.random_bool(0.05))
+            && is_leisure_period(day_period)
         {
             let mut fun_activities = Vec::new();
 
@@ -936,7 +964,7 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
 
         // Villagers with roles should perform those roles
         if matches!(ctx.actor.profession(), Some(Profession::Herbalist))
-            && ctx.rng.random_bool(0.8)
+            && is_work_period(day_period)
             && let Some(forest_wpos) = find_forest(ctx)
         {
             consider.casual(
@@ -951,7 +979,7 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
         }
 
         if matches!(ctx.actor.profession(), Some(Profession::Farmer))
-            && ctx.rng.random_bool(0.8)
+            && is_work_period(day_period)
             && let Some(farm_wpos) = find_farm(ctx, visiting_site)
         {
             consider.casual(
@@ -966,7 +994,7 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
         }
 
         if matches!(ctx.actor.profession(), Some(Profession::Hunter))
-            && ctx.rng.random_bool(0.8)
+            && is_work_period(day_period)
             && let Some(forest_wpos) = find_forest(ctx)
         {
             consider.casual(
@@ -985,7 +1013,6 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
         }
 
         if matches!(ctx.actor.profession(), Some(Profession::Guard))
-            && ctx.rng.random_bool(0.7)
             && let Some(plaza_wpos) = choose_plaza(ctx, visiting_site)
         {
             consider.casual(
@@ -1005,7 +1032,9 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
             );
         }
 
-        if matches!(ctx.actor.profession(), Some(Profession::Merchant)) && ctx.rng.random_bool(0.8) {
+        if matches!(ctx.actor.profession(), Some(Profession::Merchant))
+            && is_work_period(day_period)
+        {
             consider.casual(
                 just(|ctx, _| {
                     // Try to direct our speech at nearby actors, if there are any
@@ -1030,7 +1059,7 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
         }
 
         if matches!(ctx.actor.profession(), Some(Profession::Chef))
-            && ctx.rng.random_bool(0.8)
+            && is_work_period(day_period)
             && let Some(ws_id) = ctx.data.sites[visiting_site].world_site
             && let Some(tavern) = ctx.index.sites.get(ws_id).plots().filter_map(|p| match_some!(p.kind(), PlotKind::Tavern(a) => a)).choose(&mut ctx.rng)
             && let Some((bar_pos, room_center)) = tavern.rooms.values().flat_map(|room|
