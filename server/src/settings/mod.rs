@@ -227,7 +227,7 @@ impl Default for Settings {
             day_length: DAY_LENGTH_DEFAULT,
             map_file: None,
             max_view_distance: Some(65),
-            max_player_group_size: 6,
+            max_player_group_size: 8,
             calendar_mode: CalendarMode::Auto,
             client_timeout: Duration::from_secs(40),
             max_player_for_kill_broadcast: None,

@@ -55,18 +55,12 @@ def collect_ftl_keys(directory: Path) -> set[str]:
 
 def collect_used_keys() -> set[str]:
     used: set[str] = set()
-    rg = subprocess.run(
-        ["rg", "-n", "--type=rust", "-S",
-         r'Content::localized(?:_with_args)?\(\s*"([a-zA-Z][a-zA-Z0-9_.-]*)"',
-         *SCAN_DIRS],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    for line in rg.stdout.splitlines():
-        match = LOCALIZED_RE.search(line)
-        if match:
-            used.add(match.group(1))
+    for scan_dir in SCAN_DIRS:
+        if not scan_dir.exists():
+            continue
+        for source in scan_dir.rglob("*.rs"):
+            text = source.read_text(encoding="utf-8-sig")
+            used.update(match.group(1) for match in LOCALIZED_RE.finditer(text))
     return used
 
 

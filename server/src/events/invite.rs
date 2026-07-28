@@ -82,7 +82,7 @@ impl ServerEvent for InitiateInviteEvent {
                     if let Some(client) = clients.get(inviter) {
                         client.send_fallible(ServerGeneral::server_msg(
                             ChatType::Meta,
-                            Content::Plain("Invite failed, target does not exist.".to_string()),
+                            Content::localized("hud-chat-meta-invite-target-missing"),
                         ));
                     }
                     continue;
@@ -155,7 +155,7 @@ impl ServerEvent for InitiateInviteEvent {
                 if let Some(client) = clients.get(inviter) {
                     client.send_fallible(ServerGeneral::server_msg(
                         ChatType::Meta,
-                        Content::Plain("This player already has a pending invite.".to_string()),
+                        Content::localized("hud-chat-meta-invite-pending"),
                     ));
                 }
                 continue;
@@ -215,7 +215,7 @@ impl ServerEvent for InitiateInviteEvent {
             } else if let Some(client) = clients.get(inviter) {
                 client.send_fallible(ServerGeneral::server_msg(
                     ChatType::Meta,
-                    Content::Plain("Can't invite, not a player or npc".to_string()),
+                    Content::localized("hud-chat-meta-invite-not-player"),
                 ));
             }
 
@@ -308,11 +308,7 @@ pub fn handle_invite_accept(data: &mut InviteResponseData, entity: Entity) {
                         {
                             client.send_fallible(ServerGeneral::server_msg(
                                 ChatType::Meta,
-                                Content::Plain(
-                                    "Trade failed, inviter initiated new trade since sending \
-                                     trade request."
-                                        .to_string(),
-                                ),
+                                Content::localized("hud-chat-meta-trade-inviter-new-trade"),
                             ));
                         }
                         return;
