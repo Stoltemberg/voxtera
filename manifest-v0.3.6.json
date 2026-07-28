@@ -1,0 +1,7 @@
+{
+  "changelog": "v0.3.6: adiciona aba Grupo no painel Social/Amigos com gestão de membros, convite de amigos online elegíveis e aceitar/recusar convite. Limite de grupo permanece em 8 (server-authoritative). Visual: líder destacado, status dots online/offline, separadores visuais entre seções. Localização completa PT-BR/EN.",
+  "commit": "89d716db60",
+  "release_url": "https://github.com/Stoltemberg/voxtera/releases/tag/v0.3.6",
+  "version": "0.3.6",
+  "zip_sha256": "d509c2a4a61667ea9203aa70d81b773dc28143115ecfcad8a41142bc00e19cb3"
+}
