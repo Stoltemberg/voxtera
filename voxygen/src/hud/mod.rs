@@ -43,6 +43,7 @@ pub use loot_scroller::LootMessage;
 pub use settings_window::ScaleChange;
 pub use subtitles::Subtitle;
 
+use admin_panel::AdminPanel;
 use bag::Bag;
 use buffs::BuffsBar;
 use buttons::Buttons;
@@ -52,7 +53,6 @@ use chrono::NaiveTime;
 use crafting::Crafting;
 use diary::{Diary, SelectedSkillTree};
 use esc_menu::EscMenu;
-use admin_panel::AdminPanel;
 use friends_panel::FriendsPanel;
 use group::Group;
 use img_ids::Imgs;
@@ -3947,6 +3947,15 @@ impl Hud {
                     },
                     friends_panel::Event::DeclineGroupInvite => {
                         events.push(Event::DeclineInvite);
+                    },
+                    friends_panel::Event::KickGroupMember(uid) => {
+                        events.push(Event::KickMember(uid));
+                    },
+                    friends_panel::Event::PromoteGroupMember(uid) => {
+                        events.push(Event::AssignLeader(uid));
+                    },
+                    friends_panel::Event::LeaveGroup => {
+                        events.push(Event::LeaveGroup);
                     },
                     friends_panel::Event::MoveSocial(pos) => {
                         global_state.settings.hud_position.social = pos;

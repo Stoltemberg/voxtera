@@ -101,6 +101,12 @@ widget_ids! {
         summary,
         group_invite_accept,
         group_invite_decline,
+        group_members_header,
+        group_member_names[],
+        group_member_kick[],
+        group_member_promote[],
+        group_leave,
+        group_invitee_header,
         draggable_area,
     }
 }
@@ -154,6 +160,9 @@ pub enum Event {
     InviteMember(Uid),
     AcceptGroupInvite,
     DeclineGroupInvite,
+    KickGroupMember(Uid),
+    PromoteGroupMember(Uid),
+    LeaveGroup,
     MoveSocial(Vec2<f64>),
 }
 
@@ -347,6 +356,162 @@ impl Widget for FriendsPanel<'_> {
             .color(Color::Rgba(0.82, 0.70, 0.34, 0.45))
             .set(state.ids.scrollbar, ui);
 
+        // Build ordered list of current group member UIDs (leader excluded, sorted by
+        // UID).
+        let group_member_uids: Vec<Uid> = {
+            let members = self.client.group_members();
+            let leader = self.client.group_info().map(|(_, l)| l);
+            let mut uids: Vec<Uid> = members
+                .iter()
+                .filter(|(_, r)| matches!(r, group::Role::Member))
+                .map(|(u, _)| *u)
+                .collect();
+            uids.sort_by_key(|u| u.0);
+            if let Some(leader) = leader {
+                uids.retain(|u| *u != leader);
+            }
+            uids
+        };
+
+        // Pre-compute invitee header Y for Group tab
+        let invitee_header_y = if state.tab == SocialTab::Group {
+            if !group_member_uids.is_empty() || self.client.group_info().is_some() {
+                28.0 + (group_member_uids.len() as f64 + 2.0) * (ROW_HEIGHT - 8.0)
+            } else {
+                4.0
+            }
+        } else {
+            0.0
+        };
+
+        // === Group tab: render current members section ===
+        if state.tab == SocialTab::Group {
+            let my_uid = self.client.uid();
+            let leader_uid = self.client.group_info().map(|(_, l)| l);
+            let is_leader = my_uid == leader_uid;
+            let in_group = !group_member_uids.is_empty() || leader_uid.is_some();
+
+            if in_group {
+                // Ensure widget arrays are large enough
+                let member_count = group_member_uids.len() + 1; // members + leader
+                if state.ids.group_member_names.len() < member_count {
+                    state.update(|s| {
+                        let generator = &mut ui.widget_id_generator();
+                        s.ids.group_member_names.resize(member_count, generator);
+                        s.ids.group_member_kick.resize(member_count, generator);
+                        s.ids.group_member_promote.resize(member_count, generator);
+                    });
+                }
+
+                // Header for current members section
+                Text::new(&self.i18n.get_msg("hud-friends-group-current-members"))
+                    .top_left_with_margins_on(state.ids.content, 4.0, 10.0)
+                    .font_id(self.fonts.cyri.conrod_id)
+                    .font_size(self.fonts.cyri.scale(14))
+                    .color(TEXT_COLOR)
+                    .set(state.ids.group_members_header, ui);
+
+                // Leader row (slot 1)
+                if let Some(leader) = leader_uid {
+                    let name = self
+                        .client
+                        .player_list()
+                        .get(&leader)
+                        .map(|info| info.player_alias.as_str().to_string())
+                        .unwrap_or_else(|| format!("Player<{}>", leader));
+                    let label = format!("\u{2605} 1. {}", name);
+                    Text::new(&label)
+                        .top_left_with_margins_on(state.ids.content, 28.0, 10.0)
+                        .font_id(self.fonts.cyri.conrod_id)
+                        .font_size(self.fonts.cyri.scale(13))
+                        .color(TEXT_COLOR)
+                        .set(state.ids.group_member_names[0], ui);
+                }
+
+                // Member rows (slots 2..N)
+                for (i, &uid) in group_member_uids.iter().enumerate() {
+                    let slot = i + 2;
+                    let name = self
+                        .client
+                        .player_list()
+                        .get(&uid)
+                        .map(|info| info.player_alias.as_str().to_string())
+                        .unwrap_or_else(|| format!("Player<{}>", uid));
+                    let label = format!("  {}. {}", slot, name);
+
+                    let row_y = 28.0 + (i as f64 + 1.0) * (ROW_HEIGHT - 8.0);
+                    let name_idx = i + 1;
+
+                    Text::new(&label)
+                        .top_left_with_margins_on(state.ids.content, row_y, 10.0)
+                        .font_id(self.fonts.cyri.conrod_id)
+                        .font_size(self.fonts.cyri.scale(13))
+                        .color(TEXT_COLOR)
+                        .set(state.ids.group_member_names[name_idx], ui);
+
+                    // Kick button (leader only, can't kick self)
+                    if is_leader && Some(uid) != my_uid {
+                        if Button::image(self.imgs.button)
+                            .hover_image(self.imgs.button_hover)
+                            .press_image(self.imgs.button_press)
+                            .w_h(60.0, 20.0)
+                            .label(&self.i18n.get_msg("hud-friends-group-kick"))
+                            .label_font_id(self.fonts.cyri.conrod_id)
+                            .label_font_size(self.fonts.cyri.scale(10))
+                            .label_color(TEXT_COLOR)
+                            .top_left_with_margins_on(state.ids.content, row_y - 2.0, 280.0)
+                            .set(state.ids.group_member_kick[name_idx], ui)
+                            .was_clicked()
+                        {
+                            events.push(Event::KickGroupMember(uid));
+                        }
+                        if Button::image(self.imgs.button)
+                            .hover_image(self.imgs.button_hover)
+                            .press_image(self.imgs.button_press)
+                            .w_h(70.0, 20.0)
+                            .label(&self.i18n.get_msg("hud-friends-group-promote"))
+                            .label_font_id(self.fonts.cyri.conrod_id)
+                            .label_font_size(self.fonts.cyri.scale(10))
+                            .label_color(TEXT_COLOR)
+                            .right_from(state.ids.group_member_kick[name_idx], 4.0)
+                            .set(state.ids.group_member_promote[name_idx], ui)
+                            .was_clicked()
+                        {
+                            events.push(Event::PromoteGroupMember(uid));
+                        }
+                    }
+                }
+
+                // Leave group button
+                if Button::image(self.imgs.button)
+                    .hover_image(self.imgs.button_hover)
+                    .press_image(self.imgs.button_press)
+                    .w_h(80.0, 22.0)
+                    .label(&self.i18n.get_msg("hud-friends-group-leave"))
+                    .label_font_id(self.fonts.cyri.conrod_id)
+                    .label_font_size(self.fonts.cyri.scale(11))
+                    .label_color(TEXT_COLOR)
+                    .top_left_with_margins_on(
+                        state.ids.content,
+                        28.0 + (group_member_uids.len() as f64 + 1.0) * (ROW_HEIGHT - 8.0),
+                        10.0,
+                    )
+                    .set(state.ids.group_leave, ui)
+                    .was_clicked()
+                {
+                    events.push(Event::LeaveGroup);
+                }
+            }
+
+            // Invitee section header (y computed above as invitee_header_y)
+            Text::new(&self.i18n.get_msg("hud-friends-group-invite-title"))
+                .top_left_with_margins_on(state.ids.content, invitee_header_y, 10.0)
+                .font_id(self.fonts.cyri.conrod_id)
+                .font_size(self.fonts.cyri.scale(14))
+                .color(TEXT_COLOR)
+                .set(state.ids.group_invitee_header, ui);
+        }
+
         let friends = self.client.friends();
         let search = state.search.trim().to_lowercase();
         let friend_aliases = filter_friend_aliases(friends, state.filter, &search);
@@ -399,6 +564,17 @@ impl Widget for FriendsPanel<'_> {
             < self.client.max_group_size() as usize;
         let can_invite_to_group = is_group_leader_or_ungrouped && group_has_capacity;
 
+        // When in the Group tab, invitee rows start below the members section.
+        let group_row_offset = if state.tab == SocialTab::Group {
+            if !group_member_uids.is_empty() || self.client.group_info().is_some() {
+                invitee_header_y + ROW_HEIGHT
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
         let row_count = match state.tab {
             SocialTab::Friends => friend_aliases.len(),
             SocialTab::Requests => request_aliases.len(),
@@ -436,7 +612,7 @@ impl Widget for FriendsPanel<'_> {
                 .press_image(self.imgs.selection_press)
                 .w_h(388.0, ROW_HEIGHT);
             let row = if i == 0 {
-                row.mid_top_with_margin_on(state.ids.content, 2.0)
+                row.mid_top_with_margin_on(state.ids.content, 2.0 + group_row_offset)
             } else {
                 row.down_from(state.ids.rows[i - 1], 2.0)
             };
