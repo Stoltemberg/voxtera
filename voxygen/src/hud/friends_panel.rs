@@ -102,10 +102,13 @@ widget_ids! {
         group_invite_accept,
         group_invite_decline,
         group_members_header,
+        group_member_row_bgs[],
         group_member_names[],
+        group_member_status_dots[],
         group_member_kick[],
         group_member_promote[],
         group_leave,
+        group_invitee_separator,
         group_invitee_header,
         draggable_area,
     }
@@ -397,7 +400,11 @@ impl Widget for FriendsPanel<'_> {
                 if state.ids.group_member_names.len() < member_count {
                     state.update(|s| {
                         let generator = &mut ui.widget_id_generator();
+                        s.ids.group_member_row_bgs.resize(member_count, generator);
                         s.ids.group_member_names.resize(member_count, generator);
+                        s.ids
+                            .group_member_status_dots
+                            .resize(member_count, generator);
                         s.ids.group_member_kick.resize(member_count, generator);
                         s.ids.group_member_promote.resize(member_count, generator);
                     });
@@ -425,7 +432,7 @@ impl Widget for FriendsPanel<'_> {
                         color::rgba(1.0, 0.85, 0.3, 0.15),
                     )
                     .top_left_with_margins_on(state.ids.content, 26.0, 6.0)
-                    .set(state.ids.group_member_kick[0], ui);
+                    .set(state.ids.group_member_row_bgs[0], ui);
                     Text::new(&label)
                         .top_left_with_margins_on(state.ids.content, 28.0, 10.0)
                         .font_id(self.fonts.cyri.conrod_id)
@@ -442,7 +449,7 @@ impl Widget for FriendsPanel<'_> {
                         } else {
                             color::rgb(0.42, 0.42, 0.42)
                         })
-                        .set(state.ids.group_member_promote[0], ui);
+                        .set(state.ids.group_member_status_dots[0], ui);
                 }
 
                 // Member rows (slots 2..N) — with alternating background, status dot
@@ -470,7 +477,7 @@ impl Widget for FriendsPanel<'_> {
                             ),
                         )
                         .top_left_with_margins_on(state.ids.content, row_y - 2.0, 6.0)
-                        .set(state.ids.group_member_kick[name_idx], ui);
+                        .set(state.ids.group_member_row_bgs[name_idx], ui);
                     }
 
                     Text::new(&label)
@@ -490,7 +497,7 @@ impl Widget for FriendsPanel<'_> {
                         } else {
                             color::rgb(0.42, 0.42, 0.42)
                         })
-                        .set(state.ids.group_member_promote[name_idx], ui);
+                        .set(state.ids.group_member_status_dots[name_idx], ui);
 
                     // Kick + Promote buttons (leader only, not self)
                     if is_leader && Some(uid) != my_uid {
@@ -550,7 +557,7 @@ impl Widget for FriendsPanel<'_> {
             let separator_y = invitee_header_y - 6.0;
             Rectangle::fill_with([388.0, 1.0], color::rgba(0.8, 0.8, 0.8, 0.3))
                 .top_left_with_margins_on(state.ids.content, separator_y, 6.0)
-                .set(state.ids.group_invitee_header, ui);
+                .set(state.ids.group_invitee_separator, ui);
             Text::new(&self.i18n.get_msg("hud-friends-group-invite-title"))
                 .top_left_with_margins_on(state.ids.content, invitee_header_y, 10.0)
                 .font_id(self.fonts.cyri.conrod_id)

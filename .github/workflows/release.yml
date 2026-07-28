@@ -38,6 +38,9 @@ jobs:
       - name: Validate known shader regressions before packaging
         run: python scripts/shader_regression_gate.py
 
+      - name: Validate Social panel widget IDs before packaging
+        run: python scripts/friends_panel_widget_id_gate.py
+
       - name: Build release binaries
         run: cargo build --release --bin Voxtera --bin veloren-server-cli
 
