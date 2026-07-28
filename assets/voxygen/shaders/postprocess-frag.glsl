@@ -237,11 +237,22 @@ void main() {
 
     vec4 final_color = aa_color * vec4(vec3(screen_fade), 1.0);
 
-#if (FLUID_MODE == FLUID_MODE_LOW)
     if (medium.x == MEDIUM_WATER) {
-        final_color *= vec4(0.2, 0.2, 0.8, 1.0);
+        // Distant pixels lose red first; blue survives furthest underwater.
+        float scene_depth = textureLod(sampler2D(t_src_depth, s_src_depth), sample_uv, 0).r;
+        float water_depth = smoothstep(0.15, 1.0, scene_depth);
+        vec3 absorption = exp(-vec3(1.70, 0.72, 0.24) * water_depth);
+        final_color.rgb = final_color.rgb * absorption
+            + vec3(0.0, 0.025, 0.085) * water_depth;
+
+        // Two inexpensive scrolling interference patterns approximate sun caustics.
+        float caustic_a = sin((sample_uv.x + tick.x * 0.018) * 90.0
+            + sin((sample_uv.y - tick.x * 0.012) * 68.0));
+        float caustic_b = sin((sample_uv.y - tick.x * 0.015) * 82.0
+            + sin((sample_uv.x + tick.x * 0.010) * 73.0));
+        float caustics = pow(max(0.0, caustic_a * caustic_b), 4.0);
+        final_color.rgb += vec3(0.015, 0.065, 0.085) * caustics * water_depth;
     }
-#endif
 
 #ifndef EXPERIMENTAL_NODITHER
     // Add a small amount of very cheap dithering noise to remove banding from gradients
@@ -279,6 +290,25 @@ void main() {
 
     #ifdef EXPERIMENTAL_CINEMATIC
         final_color.rgb = hsv2rgb(rgb2hsv(final_color.rgb) * vec3(1, 1, 1.3) + vec3(-0.01, 0.05, 0));
+    #endif
+
+    #ifdef EXPERIMENTAL_VIGNETTE
+    {
+        vec2 vig_uv = uv - 0.5;
+        float vig = 1.0 - dot(vig_uv, vig_uv) * 1.4;
+        final_color.rgb *= clamp(vig, 0.0, 1.0);
+    }
+    #endif
+
+    #ifdef EXPERIMENTAL_DYNAMICSATURATION
+    {
+        // sun_dir.z > 0 = night, < 0 = day (Veloren convention)
+        float day_factor = clamp(-sun_dir.z, 0.0, 1.0);
+        float target_sat = mix(0.35, 1.0, day_factor);
+        vec3 hsv = rgb2hsv(final_color.rgb);
+        hsv.y *= target_sat;
+        final_color.rgb = hsv2rgb(hsv);
+    }
     #endif
 
     tgt_color = vec4(final_color.rgb, 1);

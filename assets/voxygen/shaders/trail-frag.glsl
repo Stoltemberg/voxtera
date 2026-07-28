@@ -20,6 +20,7 @@
 
 #include <globals.glsl>
 
+layout(location = 0) in vec3 f_pos;
 layout(location = 0) out vec4 tgt_color;
 
 #include <sky.glsl>
@@ -29,14 +30,17 @@ layout(location = 0) out vec4 tgt_color;
 const float FADE_DIST = 32.0;
 
 void main() {
-    vec3 trail_color = vec3(.55, .92, 1.0);
-    float trail_alpha = 0.05;
-    // Controls how much light affects alpha variation. TODO: Maybe a better name?
-    float light_variable = 0.025;
+    float dist = length(f_pos - cam_pos.xyz);
+    float dist_fade = 1.0 - clamp(dist / FADE_DIST, 0.0, 1.0);
 
-    // Make less faint at day (relative to night) by adding light to alpha. Probably hacky but looks fine.
-    // TODO: Trails should also eventually account for shadows, nearby lights, attenuation of sunlight in water, and block based lighting. Note: many of these will require alternative methods that don't require a normal.
-    trail_alpha += get_sun_brightness() * light_variable;
+    // Warm near the player, cool at the trail's fading edge.
+    vec3 near_color = vec3(1.0, 0.84, 0.55);
+    vec3 far_color = vec3(0.35, 0.72, 1.0);
+    vec3 trail_color = mix(far_color, near_color, dist_fade);
+
+    // Fade smoothly with distance while keeping trails readable in daylight.
+    float trail_alpha = 0.08 * dist_fade;
+    trail_alpha += get_sun_brightness() * 0.03;
 
     tgt_color = vec4(trail_color, trail_alpha);
 }

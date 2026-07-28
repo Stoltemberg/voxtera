@@ -609,6 +609,10 @@ pub enum ExperimentalShader {
     NoHaze,
     /// Disable cloud rendering entirely.
     NoClouds,
+    /// Vignette darkening at screen edges.
+    Vignette,
+    /// Desaturate the image at night and boost saturation during the day.
+    DynamicSaturation,
 }
 
 impl ExperimentalShader {
