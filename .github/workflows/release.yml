@@ -63,6 +63,9 @@ jobs:
           # Create ZIP
           Compress-Archive -Path "$staging/*" -DestinationPath "voxtera-windows-x64.zip"
 
+      - name: Validate packaged runtime assets
+        run: python scripts/release_asset_gate.py voxtera-windows-x64.zip
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

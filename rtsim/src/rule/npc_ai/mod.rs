@@ -412,6 +412,46 @@ fn socialize() -> impl Action<EveryRange> {
     })
 }
 
+/// Night-time rest: villagers go to a house and sit/sleep until dawn.
+/// Reuses the existing `Controller::do_sit` and house-selection logic.
+fn night_rest() -> impl Action<DefaultState> {
+    now(move |ctx, _| {
+        // Find a house in the current site
+        if let Some(current_site) = ctx.actor.current_site
+            && let Some(site) = ctx.data.sites.get(current_site)
+            && let Some(world_site_id) = site.world_site
+        {
+            let world_site = ctx.index.sites.get(world_site_id);
+            if let Some(house) = world_site.plots().filter(|p| p.is_house()).choose(&mut ctx.rng)
+            {
+                let house_wpos = world_site.tile_center_wpos(house.root_tile()).as_();
+                just(|ctx, _| {
+                    ctx.controller
+                        .say(None, Content::localized("npc-speech-night_time"))
+                })
+                .then(travel_to_point(house_wpos, 0.65))
+                .debug(|| "walk to house (night)")
+                // Sit inside the house until it's light again
+                .then(just(move |ctx, _| ctx.controller.do_sit(None, None))
+                    .repeat()
+                    .stop_if(|ctx: &mut NpcCtx| ctx.actor.get_day_period(ctx.time_of_day).is_light()))
+                .then(just(|ctx, _| {
+                    ctx.controller
+                        .say(None, Content::localized("npc-speech-day_time"))
+                }))
+                .map(|_, _| ())
+                .boxed()
+            } else {
+                // No house available — just wait
+                finish().boxed()
+            }
+        } else {
+            // No site or world site — just wait
+            finish().boxed()
+        }
+    })
+}
+
 fn pirate(is_leader: bool) -> impl Action<DefaultState> {
     choose(move |ctx: &mut NpcCtx, _, consider| {
         if is_leader
@@ -831,44 +871,13 @@ fn villager(visiting_site: SiteId) -> impl Action<DefaultState> {
         let day_period = ctx.actor.get_day_period(ctx.time_of_day);
         let is_raining = ctx.system_data.weather_grid.is_raining(ctx.actor.wpos.xy());
 
-        // Go to a house if it's dark
+        // Go to a house if it's dark - use night_rest action for visible sitting/sleeping
         if day_period.is_dark()
             && !matches!(ctx.actor.profession(), Some(Profession::Guard))
         {
             consider.important(
-                now(move |ctx, _| {
-                    if let Some(house_wpos) = ctx.data
-                        .sites
-                        .get(visiting_site)
-                        .and_then(|site| Some(ctx.index.sites.get(site.world_site?)))
-                        .and_then(|site| {
-                            // Find a house in the site we're visiting
-                            let house = site
-                                .plots()
-                                .filter(|p| p.is_house())
-                                .choose(&mut ctx.rng)?;
-                            Some(site.tile_center_wpos(house.root_tile()).as_())
-                        })
-                    {
-                        just(|ctx, _| {
-                            ctx.controller
-                                .say(None, Content::localized("npc-speech-night_time"))
-                        })
-                        .then(travel_to_point(house_wpos, 0.65))
-                        .debug(|| "walk to house")
-                        .then(socialize().repeat().map_state(|state: &mut DefaultState| &mut state.socialize_timer).debug(|| "wait in house"))
-                        .stop_if(|ctx: &mut NpcCtx| ctx.actor.get_day_period(ctx.time_of_day).is_light())
-                        .then(just(|ctx, _| {
-                            ctx.controller
-                                .say(None, Content::localized("npc-speech-day_time"))
-                        }))
-                        .map(|_, _| ())
-                        .boxed()
-                    } else {
-                        finish().boxed()
-                    }
-                })
-                .debug(|| "find somewhere to sleep"),
+                night_rest()
+                    .debug(|| "night rest"),
             );
         }
 
