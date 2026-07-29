@@ -1,0 +1,7 @@
+{
+  "version": "0.3.8.3",
+  "commit": "ce768b4fb6",
+  "release_url": "https://github.com/Stoltemberg/voxtera/releases/tag/v0.3.8.3",
+  "zip_sha256": "df7c7708ae3e2bffae577f1d33db66240c6284f5ab5ec46a239aefd28ff1b582",
+  "changelog": "Combate com mais impacto: a câmera reage de forma suave ao receber dano."
+}
