@@ -104,6 +104,9 @@ fn is_work_period(day_period: DayPeriod) -> bool {
 /// Civilian leisure begins after the work period and before night curfew.
 fn is_leisure_period(day_period: DayPeriod) -> bool { day_period == DayPeriod::Evening }
 
+/// Roles that should continuously move through terrain rather than remain idle.
+fn role_uses_terrain_roaming(role: &Role) -> bool { matches!(role, Role::Monster | Role::Wild) }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,6 +129,13 @@ mod tests {
         assert!(!is_leisure_period(DayPeriod::Morning));
         assert!(!is_leisure_period(DayPeriod::Noon));
         assert!(!is_leisure_period(DayPeriod::Night));
+    }
+
+    #[test]
+    fn wild_and_monster_roles_use_terrain_roaming() {
+        assert!(role_uses_terrain_roaming(&Role::Wild));
+        assert!(role_uses_terrain_roaming(&Role::Monster));
+        assert!(!role_uses_terrain_roaming(&Role::Vehicle));
     }
 }
 
@@ -1715,7 +1725,11 @@ fn bird_large() -> impl Action<DefaultState> {
         .map(|_, _| ())
 }
 
-fn monster() -> impl Action<DefaultState> {
+/// Moves non-civilised terrestrial actors between local roam targets.
+///
+/// This is deliberately shared by monsters and wildlife: threat reactions stay
+/// in their own AI paths while both categories gain persistent world movement.
+fn terrain_roam() -> impl Action<DefaultState> {
     now(
         |ctx,
          (bearing, roam_location, roam_location_timestamp): &mut (
@@ -1802,9 +1816,13 @@ fn think() -> impl Action<DefaultState> {
                 .l()
                 .r()
                 .l(),
-            Role::Monster => monster().r().r().l(),
-            Role::Wild => idle().r(),
-            Role::Vehicle => idle().r(),
+            role => {
+                if role_uses_terrain_roaming(role) {
+                    terrain_roam().r().r().l()
+                } else {
+                    idle().r()
+                }
+            },
         },
     })
 }
