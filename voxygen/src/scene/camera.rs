@@ -12,6 +12,7 @@ const FIRST_PERSON_INTERP_TIME: f32 = 0.1;
 const THIRD_PERSON_INTERP_TIME: f32 = 0.1;
 const FREEFLY_INTERP_TIME: f32 = 0.0;
 const LERP_ORI_RATE: f32 = 15.0;
+const SCREEN_SHAKE_DURATION: f32 = 0.30;
 const CLIPPING_MODE_RANGE: Range<f32> = 2.0..20.0;
 pub const MIN_ZOOM: f32 = 0.1;
 
@@ -52,6 +53,8 @@ pub struct Camera {
     mode: CameraMode,
 
     last_time: Option<f64>,
+    shake_remaining: f32,
+    shake_intensity: f32,
 
     dependents: Dependents,
     frustum: Frustum<f32>,
@@ -337,6 +340,8 @@ impl Camera {
             mode,
 
             last_time: None,
+            shake_remaining: 0.0,
+            shake_intensity: 0.0,
 
             dependents: Dependents {
                 view_mat: Mat4::identity(),
@@ -635,6 +640,30 @@ impl Camera {
             self.tgt_ori
         };
         self.ori = clamp_and_modulate(ori);
+
+        if self.shake_remaining > 0.0 {
+            let envelope = screen_shake_envelope(self.shake_remaining, SCREEN_SHAKE_DURATION);
+            let phase = time as f32 * 71.0;
+            let amplitude = self.shake_intensity * envelope;
+            self.ori = clamp_and_modulate(
+                self.ori
+                    + Vec3::new(
+                        phase.sin() * amplitude,
+                        (phase * 1.71).cos() * amplitude * 0.65,
+                        0.0,
+                    ),
+            );
+            self.shake_remaining = (self.shake_remaining - dt).max(0.0);
+            if self.shake_remaining == 0.0 {
+                self.shake_intensity = 0.0;
+            }
+        }
+    }
+
+    /// Trigger a short camera shake after local-player damage.
+    pub fn trigger_damage_shake(&mut self, intensity: f32) {
+        self.shake_intensity = self.shake_intensity.max(intensity.clamp(0.0, 0.035));
+        self.shake_remaining = SCREEN_SHAKE_DURATION;
     }
 
     pub fn lerp_toward(&mut self, tgt_ori: Vec3<f32>, dt: f32, rate: f32) {
@@ -796,10 +825,33 @@ impl Camera {
     }
 }
 
+/// Quadratic decay gives an immediate impact that settles without a hard stop.
+fn screen_shake_envelope(remaining: f32, duration: f32) -> f32 {
+    if remaining <= 0.0 || duration <= 0.0 {
+        0.0
+    } else {
+        let t = (remaining / duration).clamp(0.0, 1.0);
+        t * t
+    }
+}
+
 fn lerp_angle(a: f32, b: f32, rate: f32) -> f32 {
     let offs = [-2.0 * PI, 0.0, 2.0 * PI]
         .iter()
         .min_by_key(|offs: &&f32| ((a - (b + *offs)).abs() * 1000.0) as i32)
         .unwrap();
     Lerp::lerp(a, b + *offs, rate)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn screen_shake_envelope_starts_strong_and_fades_to_zero() {
+        assert!((screen_shake_envelope(0.30, 0.30) - 1.0).abs() < f32::EPSILON);
+        assert!((screen_shake_envelope(0.15, 0.30) - 0.25).abs() < f32::EPSILON);
+        assert_eq!(screen_shake_envelope(0.0, 0.30), 0.0);
+        assert_eq!(screen_shake_envelope(-0.01, 0.30), 0.0);
+    }
 }

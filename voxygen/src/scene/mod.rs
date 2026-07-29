@@ -491,6 +491,17 @@ impl Scene {
             .handle_outcome(outcome, audio, scene_data.client);
 
         match outcome {
+            Outcome::HealthChange { info, .. }
+                if scene_data
+                    .state
+                    .ecs()
+                    .read_resource::<common::uid::IdMaps>()
+                    .uid_entity(info.target)
+                    == Some(scene_data.viewpoint_entity) =>
+            {
+                self.camera
+                    .trigger_damage_shake(if info.precise { 0.028 } else { 0.016 });
+            },
             Outcome::Lightning { pos } => {
                 self.last_lightning = Some((*pos, scene_data.state.get_time()));
             },
