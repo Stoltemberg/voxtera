@@ -18,6 +18,7 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 is_macos = sys.platform == "darwin"
+LAUNCHER_VERSION = os.environ.get("VOXTERA_LAUNCHER_VERSION", "0.4.1")
 
 exe = EXE(
     pyz,
@@ -59,5 +60,10 @@ if is_macos:
         name="VoxteraLauncher.app",
         icon=None,
         bundle_identifier="app.voxtera.launcher",
-        info_plist={"NSHighResolutionCapable": "True"},
+        info_plist={
+            "CFBundleDisplayName": "Voxtera Launcher",
+            "CFBundleShortVersionString": LAUNCHER_VERSION,
+            "CFBundleVersion": LAUNCHER_VERSION,
+            "NSHighResolutionCapable": "True",
+        },
     )

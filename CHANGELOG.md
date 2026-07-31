@@ -5,6 +5,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/) e versi
 
 ---
 
+## [Launcher 0.4.1] — 2026-07-31
+
+### Corrigido
+- **macOS:** configurações e logs não são mais gravados dentro de `VoxteraLauncher.app`; agora usam `~/Library/Application Support/Voxtera`, compatível com App Translocation.
+- **Verificação de atualização:** workers não chamam mais APIs do Tk. Uma fila é drenada somente pelo `mainloop`, eliminando o estado inicial permanente quando a atualização conclui em background; progresso de download é coalescido e drenado em lotes limitados.
+- Releases RC/pré-release são ignorados no canal estável; releases exclusivos do launcher não escondem o ZIP do jogo compatível.
+- Downloads exigem manifesto com SHA-256 válido para o arquivo/plataforma corretos e rejeitam ZIPs com caminhos ou taxas de expansão inseguros.
+
+### Adicionado
+- Área explícita **Configurações de instalação** com seleção persistente da pasta do jogo; o bundle do launcher não pode ser escolhido como destino.
+- Log de diagnóstico em `launcher.log` no diretório de dados do usuário.
+- Site usa URLs versionadas para os downloads e redirects da Vercel para assets de release, evitando artefatos estáticos desatualizados.
+
+### Distribuição
+- O build macOS desta versão é **x86_64 (Intel)**. Developer ID e notarização continuam pendentes antes de distribuição pública confiável.
+
 ## [0.4.0] — 2026-07-30
 
 ### Adicionado

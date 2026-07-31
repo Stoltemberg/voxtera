@@ -1,12 +1,16 @@
-"""Contract tests for the platform-aware Voxtera launcher."""
+"""Contract and regression tests for the Voxtera launcher."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
+import queue
 import tempfile
+import threading
 import unittest
+import zipfile
 
+import voxtera_launcher as launcher
 from voxtera_launcher import (
     find_platform_archive,
     game_launch_environment,
@@ -14,6 +18,90 @@ from voxtera_launcher import (
     manifest_sha256_for_platform,
     platform_spec,
 )
+
+
+class UserConfigurationTests(unittest.TestCase):
+    def test_macos_uses_user_writable_config_and_install_directories(self) -> None:
+        """A distributed .app must never write configuration or game files inside
+        its own bundle, because Gatekeeper/App Translocation can make it read-only."""
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / "home"
+
+            config_file = launcher.user_config_path("Darwin", home=home)
+            install_dir = launcher.default_install_dir("Darwin", home=home)
+
+        self.assertEqual(
+            config_file,
+            home / "Library" / "Application Support" / "Voxtera" / "voxtera_config.json",
+        )
+        self.assertEqual(install_dir, home / "Applications" / "Voxtera")
+        self.assertNotIn("VoxteraLauncher.app", str(config_file))
+        self.assertNotIn("VoxteraLauncher.app", str(install_dir))
+
+    def test_windows_uses_localappdata_for_config_and_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = {"LOCALAPPDATA": str(root / "LocalAppData")}
+
+            config_file = launcher.user_config_path("Windows", home=root / "home", environ=environment)
+            install_dir = launcher.default_install_dir("Windows", home=root / "home", environ=environment)
+
+        self.assertEqual(config_file, root / "LocalAppData" / "Voxtera" / "voxtera_config.json")
+        self.assertEqual(install_dir, root / "LocalAppData" / "Voxtera")
+
+    def test_selected_install_directory_is_normalized_and_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_file = root / "Application Support" / "Voxtera" / "voxtera_config.json"
+            selected = root / "Games" / "alpha" / ".." / "Voxtera"
+
+            install_dir = launcher.normalize_install_dir(selected)
+            launcher.save_config(
+                {"install_dir": install_dir, "installed_version": "v0.4.0"},
+                config_file=config_file,
+            )
+            reloaded = launcher.load_config(config_file=config_file, legacy_config_file=None)
+
+            self.assertEqual(install_dir, str((root / "Games" / "Voxtera").resolve()))
+            self.assertEqual(reloaded["install_dir"], install_dir)
+            self.assertEqual(reloaded["installed_version"], "v0.4.0")
+            self.assertTrue(config_file.is_file())
+
+    def test_launcher_bundle_is_not_an_install_target(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "VoxteraLauncher.app"
+            bundle_game_path = bundle / "Contents" / "MacOS" / "game"
+
+            self.assertTrue(
+                launcher.is_inside_launcher_bundle(bundle_game_path, base_dir=bundle / "Contents" / "MacOS")
+            )
+            self.assertFalse(
+                launcher.is_inside_launcher_bundle(root / "Games" / "Voxtera", base_dir=bundle / "Contents" / "MacOS")
+            )
+
+
+class ArchiveValidationTests(unittest.TestCase):
+    def test_rejects_members_that_escape_install_dir_or_expand_excessively(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            malicious = root / "malicious.zip"
+            with zipfile.ZipFile(malicious, "w") as archive:
+                archive.writestr("../outside.txt", "nope")
+
+            with self.assertRaisesRegex(RuntimeError, "fora"):
+                launcher.validate_game_archive(malicious, root / "install")
+
+            compressed = root / "compressed.zip"
+            with zipfile.ZipFile(compressed, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("large-zeroes.bin", b"\0" * 16_384)
+
+            with self.assertRaisesRegex(RuntimeError, "compress"):
+                launcher.validate_game_archive(
+                    compressed,
+                    root / "install",
+                    max_compression_ratio=2,
+                )
 
 
 class PlatformAwareLauncherTests(unittest.TestCase):
@@ -83,6 +171,28 @@ class PlatformAwareLauncherTests(unittest.TestCase):
             "macos-sha256",
         )
 
+    def test_missing_or_invalid_platform_manifest_hash_is_rejected(self) -> None:
+        spec = platform_spec("Darwin")
+        archive = "Voxtera-macos-universal-v0.4.0.zip"
+        sha256 = "a" * 64
+        self.assertEqual(
+            launcher.required_manifest_sha256(
+                {"artifacts": {spec.key: {"archive": archive, "sha256": sha256}}},
+                spec,
+                archive,
+            ),
+            sha256,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "SHA-256"):
+            launcher.required_manifest_sha256({}, spec, archive)
+        with self.assertRaisesRegex(RuntimeError, "SHA-256"):
+            launcher.required_manifest_sha256(
+                {"artifacts": {spec.key: {"archive": archive, "sha256": "not-a-sha"}}},
+                spec,
+                archive,
+            )
+
     def test_legacy_single_hash_manifest_remains_compatible_with_windows(self) -> None:
         self.assertEqual(
             manifest_sha256_for_platform(
@@ -116,180 +226,146 @@ class PlatformAwareLauncherTests(unittest.TestCase):
             platform_spec("Linux")
 
 
+class ReleaseSelectionTests(unittest.TestCase):
+    def test_launcher_only_release_is_skipped_for_game_updates(self) -> None:
+        """A new launcher release must not hide the latest platform game archive."""
+        launcher_release = {
+            "tag_name": "launcher-v0.4.1",
+            "assets": [{"name": "VoxteraLauncher.app.zip"}],
+        }
+        game_release = {
+            "tag_name": "v0.4.0",
+            "assets": [
+                {
+                    "name": "Voxtera-macos-universal-v0.4.0.zip",
+                    "browser_download_url": "https://example.invalid/macos-game.zip",
+                },
+            ],
+        }
 
-
-class TkThreadSafeAfterTests(unittest.TestCase):
-    """Regression: Tk's after() may raise RuntimeError from a worker thread
-    on macOS PyInstaller bundles, leaving the status label stuck on the
-    initial 'Verificando atualizações...' text. The fix routes updates
-    through a queue.Queue drained by the main loop.
-    """
-
-    class _FakeLauncher:
-        def __init__(self):
-            import queue as _queue
-            self._ui_queue = _queue.Queue()
-            self._tk_alive = True
-            self._status_text = "Verificando atualizações..."
-            self._pump_calls = 0
-
-        def _set_status(self, text, color=None):
-            self._status_text = text
-
-        def after(self, ms, func):
-            # Simulate the macOS failure that was haunting the launcher.
-            raise RuntimeError("main thread is not in main loop")
-
-    def test_safe_after_fallback_uses_queue_when_tk_after_raises(self):
-        # Wire the new helpers onto the fake launcher
-        import voxtera_launcher as M
-        fl = self._FakeLauncher()
-        fl._safe_after = M.VoxteraLauncher._safe_after.__get__(fl)
-        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
-
-        # First update: after() raises, so the call should land in the queue
-        fl._safe_after(lambda: fl._set_status("Nova versão: v0.4.0", None))
-        self.assertEqual(fl._status_text, "Verificando atualizações...")
-        self.assertEqual(fl._ui_queue.qsize(), 1)
-
-    def test_pump_dispatch_drains_pending_updates(self):
-        import queue as _queue
-        import voxtera_launcher as M
-        fl = self._FakeLauncher()
-        fl._safe_after = M.VoxteraLauncher._safe_after.__get__(fl)
-        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
-
-        # Pre-populate the queue as a worker thread would
-        fl._safe_after(lambda: fl._set_status("Status A", None))
-        fl._safe_after(lambda: fl._set_status("Status B", None))
-        self.assertEqual(fl._ui_queue.qsize(), 2)
-
-        # Drain directly (we can't run the rescheduling after() here)
-        while True:
-            try:
-                func = fl._ui_queue.get_nowait()
-            except _queue.Empty:
-                break
-            func()
-        self.assertEqual(fl._status_text, "Status B")
-        self.assertEqual(fl._ui_queue.qsize(), 0)
-
-    def test_safe_after_noop_when_launcher_destroyed(self):
-        import queue as _queue
-        import voxtera_launcher as M
-        fl = self._FakeLauncher()
-        fl._safe_after = M.VoxteraLauncher._safe_after.__get__(fl)
-        fl._tk_alive = False
-        fl._safe_after(lambda: fl._set_status("ignored", None))
-        self.assertEqual(fl._ui_queue.qsize(), 0)
-        self.assertEqual(fl._status_text, "Verificando atualizações...")
-
-    def test_threaded_check_updates_unblocks_status(self):
-        # End-to-end of the original bug: a daemon thread runs the update
-        # check, every self.after() raises, and the queue pathway is what
-        # surfaces the final status to the UI.
-        import threading
-        import voxtera_launcher as M
-
-        class ThreadProbe(self._FakeLauncher):
-            def __init__(self):
-                super().__init__()
-                self.platform = M.platform_spec()
-                self.cfg = {"install_dir": "/tmp/fake", "installed_version": None}
-                self.latest_version = None
-                self.download_url = None
-                self.download_asset = None
-                self.manifest_url = None
-                self._downloading = False
-
-            def _is_installed(self):
-                return False
-
-        fl = ThreadProbe()
-        fl._safe_after = M.VoxteraLauncher._safe_after.__get__(fl)
-        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
-
-        # Replicate the _do_check_updates body wrapped in def, no need to
-        # spawn the real Tk app.
-        def body():
-            try:
-                releases = M.api_get(M.GITHUB_API)
-                if not releases:
-                    fl._safe_after(lambda: fl._set_status("Nenhum release"))
-                    return
-                release = releases[0]
-                fl.latest_version = release["tag_name"]
-                fl.download_asset = M.find_platform_archive(release, fl.platform)
-                fl.download_url = (
-                    fl.download_asset["browser_download_url"]
-                    if fl.download_asset else None
-                )
-                fl.manifest_url = M.find_manifest_url(release)
-                if fl.download_url:
-                    fl._safe_after(lambda: fl._set_status(
-                        f"Nova versão: {fl.latest_version}"))
-            except Exception as exc:
-                msg = f"Erro: {exc}"
-                fl._safe_after(lambda: fl._set_status(msg))
-        threading.Thread(target=body, daemon=True).start()
-        # Drain synchronously
-        import time
-        for _ in range(40):
-            time.sleep(0.05)
-            while True:
-                try:
-                    func = fl._ui_queue.get_nowait()
-                except Exception:
-                    break
-                func()
-            if fl._status_text != "Verificando atualizações...":
-                break
-        self.assertTrue(
-            fl._status_text.startswith("Nova versão: ") or fl._status_text.startswith("Erro: "),
-            f"status did not advance: {fl._status_text!r}",
+        release, asset = launcher.find_latest_game_release(
+            [launcher_release, game_release],
+            platform_spec("Darwin"),
         )
 
+        self.assertIs(release, game_release)
+        self.assertEqual(asset["name"], "Voxtera-macos-universal-v0.4.0.zip")
 
-    def test_pump_dispatch_re_enqueues_when_after_fails(self):
-        """When self.after(0, func) raises RuntimeError (macOS PyInstaller),
-        pump_dispatch should re-enqueue items instead of losing them."""
-        import voxtera_launcher as M
+    def test_prerelease_is_skipped_in_favor_of_a_stable_game_release(self) -> None:
+        prerelease = {
+            "tag_name": "v0.5.0-rc.1",
+            "prerelease": True,
+            "assets": [{"name": "Voxtera-macos-universal-v0.5.0-rc.1.zip"}],
+        }
+        stable = {
+            "tag_name": "v0.4.0",
+            "assets": [{"name": "Voxtera-macos-universal-v0.4.0.zip"}],
+        }
 
-        class _BrokenAfterLauncher:
-            def __init__(self):
-                import queue as _q
-                self._ui_queue = _q.Queue()
-                self._tk_alive = True
-            def after(self, ms, func):
-                raise RuntimeError("main thread is not in main loop")
+        release, asset = launcher.find_latest_game_release(
+            [prerelease, stable],
+            platform_spec("Darwin"),
+        )
 
-        fl = _BrokenAfterLauncher()
-        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
+        self.assertIs(release, stable)
+        self.assertEqual(asset["name"], "Voxtera-macos-universal-v0.4.0.zip")
 
-        fl._ui_queue.put(lambda: None)
-        fl._ui_queue.put(lambda: None)
-        self.assertEqual(fl._ui_queue.qsize(), 2)
 
-        # pump_dispatch should re-enqueue because after() fails
-        fl._pump_dispatch()
+class MainThreadUiQueueTests(unittest.TestCase):
+    """Tk must only be called from the thread that created its interpreter."""
 
-        # Items should still be in the queue (re-enqueued)
-        self.assertTrue(fl._ui_queue.qsize() >= 1)
+    class _ThreadOwnedLauncher:
+        def __init__(self) -> None:
+            self._ui_queue = queue.Queue()
+            self._tk_alive = True
+            self._tk_thread_id = threading.get_ident()
+            self.after_calls = []
+            self.status = "Verificando atualizações..."
 
-    def test_pump_dispatch_stops_when_tk_alive_false(self):
-        import voxtera_launcher as M
+        def after(self, milliseconds, callback):
+            if threading.get_ident() != self._tk_thread_id:
+                raise AssertionError("worker thread invoked Tk.after")
+            self.after_calls.append((milliseconds, callback))
 
-        class _Fake:
-            def __init__(self):
-                import queue as _q
-                self._ui_queue = _q.Queue()
-                self._tk_alive = False
+        def _set_status(self, text, color=None) -> None:
+            self.status = text
 
-        fl = _Fake()
-        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
-        fl._ui_queue.put(lambda: None)
-        fl._pump_dispatch()
-        self.assertEqual(fl._ui_queue.qsize(), 1)
+    def _bind(self, fake) -> None:
+        fake._post_ui = launcher.VoxteraLauncher._post_ui.__get__(fake)
+        fake._drain_ui_queue = launcher.VoxteraLauncher._drain_ui_queue.__get__(fake)
+
+    def test_worker_posts_without_touching_tk(self) -> None:
+        fake = self._ThreadOwnedLauncher()
+        self._bind(fake)
+
+        worker = threading.Thread(
+            target=lambda: fake._post_ui(lambda: fake._set_status("Nova versão: v0.4.0")),
+        )
+        worker.start()
+        worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(fake.after_calls, [])
+        self.assertEqual(fake._ui_queue.qsize(), 1)
+
+    def test_main_thread_drain_updates_widgets_and_reschedules(self) -> None:
+        fake = self._ThreadOwnedLauncher()
+        self._bind(fake)
+        fake._post_ui(lambda: fake._set_status("Nova versão: v0.4.0"))
+
+        fake._drain_ui_queue()
+
+        self.assertEqual(fake.status, "Nova versão: v0.4.0")
+        self.assertEqual(len(fake.after_calls), 1)
+        self.assertEqual(fake.after_calls[0][0], 50)
+
+    def test_drain_uses_a_bounded_batch_when_work_keeps_arriving(self) -> None:
+        fake = self._ThreadOwnedLauncher()
+        fake.completed_callbacks = 0
+        self._bind(fake)
+        for _ in range(launcher.UI_QUEUE_BATCH_SIZE + 1):
+            fake._post_ui(lambda: setattr(fake, "completed_callbacks", fake.completed_callbacks + 1))
+
+        fake._drain_ui_queue()
+
+        self.assertEqual(fake.completed_callbacks, launcher.UI_QUEUE_BATCH_SIZE)
+        self.assertEqual(fake._ui_queue.qsize(), 1)
+        self.assertEqual(fake.after_calls[0][0], 1)
+
+    def test_progress_updates_are_coalesced_before_the_main_thread_drains_them(self) -> None:
+        class ProgressBar:
+            def __init__(self) -> None:
+                self.values = []
+
+            def config(self, **kwargs) -> None:
+                self.values.append(kwargs)
+
+        class ProgressLabel:
+            def __init__(self) -> None:
+                self.texts = []
+
+            def config(self, **kwargs) -> None:
+                self.texts.append(kwargs.get("text"))
+
+        fake = self._ThreadOwnedLauncher()
+        fake.progress = ProgressBar()
+        fake.progress_label = ProgressLabel()
+        fake._progress_lock = threading.Lock()
+        fake._pending_progress = None
+        fake._progress_callback_posted = False
+        self._bind(fake)
+        fake._post_progress_update = launcher.VoxteraLauncher._post_progress_update.__get__(fake)
+        fake._apply_pending_progress = launcher.VoxteraLauncher._apply_pending_progress.__get__(fake)
+
+        fake._post_progress_update(10, "1.0 / 10.0 MB (10%)")
+        fake._post_progress_update(20, "2.0 / 10.0 MB (20%)")
+        self.assertEqual(fake._ui_queue.qsize(), 1)
+
+        fake._drain_ui_queue()
+
+        self.assertEqual(fake.progress.values, [{"value": 20}])
+        self.assertEqual(fake.progress_label.texts, ["2.0 / 10.0 MB (20%)"])
+
 
 if __name__ == "__main__":
     unittest.main()

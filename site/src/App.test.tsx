@@ -14,6 +14,14 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("states only the verified macOS architecture", () => {
+    render(<App />);
+
+    expect(
+      screen.getByText("Windows 10/11 · macOS Intel · instalação e atualizações automáticas"),
+    ).toBeInTheDocument();
+  });
+
   it("renders the approved cinematic sections without card or thumbnail composition", () => {
     render(<App />);
 
@@ -35,11 +43,11 @@ describe("App", () => {
 
     expect(windowsDownloads).toHaveLength(2);
     windowsDownloads.forEach((action) => {
-      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher.exe");
+      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher-windows-v0.4.0.exe");
     });
     expect(macosDownloads).toHaveLength(2);
     macosDownloads.forEach((action) => {
-      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher.app.zip");
+      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher-macos-x86_64-v0.4.1.app.zip");
     });
   });
 
@@ -52,11 +60,11 @@ describe("App", () => {
     );
     expect(screen.getAllByRole("link", { name: "Baixar launcher para Windows (.exe)" })[0]).toHaveAttribute(
       "href",
-      "/downloads/VoxteraLauncher.exe",
+      "/downloads/VoxteraLauncher-windows-v0.4.0.exe",
     );
     expect(screen.getAllByRole("link", { name: "Baixar launcher para macOS (.app)" })[0]).toHaveAttribute(
       "href",
-      "/downloads/VoxteraLauncher.app.zip",
+      "/downloads/VoxteraLauncher-macos-x86_64-v0.4.1.app.zip",
     );
   });
 
