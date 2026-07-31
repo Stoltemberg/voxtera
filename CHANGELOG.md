@@ -5,6 +5,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/) e versi
 
 ---
 
+## [Launcher 0.4.3] — 2026-07-31
+
+### Corrigido
+- **JOGAR no macOS:** binários extraídos de ZIPs do GitHub recebem `+x` após descompactação, corrigindo `PermissionError` silencioso ao clicar em JOGAR. O botão agora captura a exceção, tenta auto-reparo e exibe mensagem descritiva em caso de falha permanente.
+
 ## [Launcher 0.4.2] — 2026-07-31
 
 ### Corrigido
