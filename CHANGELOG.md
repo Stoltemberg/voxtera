@@ -21,6 +21,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/) e versi
   - Status dot verde de membros do grupo preserva legibilidade com cor extraída em variável.
 - **i18n:** Novas entradas `hud-friends-group-invite-open` em EN e PT-BR.
 
+### Corrigido
+- **Launcher "Verificando atualizações" eterno (macOS):** `self.after(0, ...)` em thread daemon falhava com `RuntimeError: main thread is not in main loop` dentro do bundle `.app` PyInstaller, sem mudar a label — agora as atualizações de UI passam por uma `queue.Queue` thread-safe drenada pelo mainloop via `_pump_queue`. Garante que o status evolui mesmo quando Tk descarta a chamada direta. Coberto por testes em `TkThreadSafeAfterTests`.
+
 ### Alterado
 - G. 825 8d8feqq549084a30 daable323d9882f6aa2139ecf3b3ecf substituído por `path = toString ./.` para compatibilidade com Nix 2.35 puro (em vez de `./.`).
 - `.gitignore` inclui exceção para `!site/public/downloads/VoxteraLauncher.app.zip`.

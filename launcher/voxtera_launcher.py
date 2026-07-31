@@ -11,6 +11,7 @@ import platform
 import socket
 import subprocess
 import sys
+import queue
 import threading
 import time
 from dataclasses import dataclass
@@ -284,9 +285,57 @@ class VoxteraLauncher(tk.Tk):
         self.download_asset = None
         self.manifest_url = None
         self._downloading = False
+        self._ui_queue = queue.Queue()
+        self._tk_alive = True
 
         self._build_ui()
+        self._start_queue_pump()
         self._check_updates_thread()
+
+
+    def _safe_after(self, func):
+        """Schedule a UI update from any thread.
+
+        Tk widgets are not thread-safe; on macOS PyInstaller bundles the worker
+        thread often invokes ``self.after(0, ...)`` while the main loop is not
+        in the right apartment, which raises ``RuntimeError: main thread is
+        not in main loop``. We catch that and fall back to a thread-safe
+        ``queue.Queue`` drained by ``_pump_queue`` from the main loop.
+        """
+        if not self._tk_alive:
+            return
+        try:
+            self.after(0, func)
+            return
+        except RuntimeError:
+            self._ui_queue.put(func)
+
+    def _pump_queue(self):
+        """Drain queued UI updates from worker threads.
+        Must be called from the main thread (i.e. via ``self.after``). It
+        reschedules itself every 50 ms while the launcher is alive.
+        """
+        if not self._tk_alive:
+            return
+        while True:
+            try:
+                func = self._ui_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                func()
+            except Exception as exc:
+                # Don't let one bad update break the pump.
+                print(f"VoxteraLauncher: queued UI update failed: {exc}")
+        self.after(50, self._pump_queue)
+
+    def _start_queue_pump(self):
+        try:
+            self.after(50, self._pump_queue)
+        except RuntimeError:
+            # The Tk mainloop is not yet ready; the queue will back up until
+            # mainloop kicks in (handled by the OS event scheduler).
+            pass
 
     # ── UI ─────────────────────────────────────────────────────────────────────
 
@@ -406,23 +455,23 @@ class VoxteraLauncher(tk.Tk):
             if not self._is_installed():
                 self.cfg["installed_version"] = None
                 save_config(self.cfg)
-                self.after(0, lambda: self._set_status("Jogo não instalado", ACCENT))
-                self.after(0, lambda: self.local_ver_label.config(text=""))
-                self.after(0, lambda: self.play_btn.config(state="disabled"))
+                self._safe_after(lambda: self._set_status("Jogo não instalado", ACCENT))
+                self._safe_after(lambda: self.local_ver_label.config(text=""))
+                self._safe_after(lambda: self.play_btn.config(state="disabled"))
             else:
                 local_ver = self.cfg.get("installed_version")
                 if local_ver:
-                    self.after(0, lambda: self.local_ver_label.config(
+                    self._safe_after(lambda: self.local_ver_label.config(
                         text=f"Instalado: {local_ver}"))
-                    self.after(0, lambda: self.play_btn.config(state="normal"))
+                    self._safe_after(lambda: self.play_btn.config(state="normal"))
 
             releases = api_get(GITHUB_API)
             if not releases:
                 if self._is_installed():
-                    self.after(0, lambda: self._set_status(
+                    self._safe_after(lambda: self._set_status(
                         "✓ Instalado (sem verificação de atualização)", GREEN))
                 else:
-                    self.after(0, lambda: self._set_status(
+                    self._safe_after(lambda: self._set_status(
                         "Nenhum release encontrado", ACCENT))
                 return
 
@@ -440,23 +489,23 @@ class VoxteraLauncher(tk.Tk):
             local_ver = self.cfg.get("installed_version")
             if self.download_url:
                 if self._is_installed() and local_ver and parse_version(local_ver) >= parse_version(self.latest_version):
-                    self.after(0, lambda: self._set_status(
+                    self._safe_after(lambda: self._set_status(
                         f"✓ Atualizado ({self.latest_version})", GREEN))
-                    self.after(0, lambda: self.play_btn.config(state="normal"))
-                    self.after(0, lambda: self.repair_btn.config(state="normal"))
+                    self._safe_after(lambda: self.play_btn.config(state="normal"))
+                    self._safe_after(lambda: self.repair_btn.config(state="normal"))
                 else:
-                    self.after(0, lambda: self._set_status(
+                    self._safe_after(lambda: self._set_status(
                         f"Nova versão: {self.latest_version}", ACCENT))
-                    self.after(0, lambda: self.update_btn.config(state="normal"))
+                    self._safe_after(lambda: self.update_btn.config(state="normal"))
                     if self._is_installed():
-                        self.after(0, lambda: self.play_btn.config(state="normal"))
-                        self.after(0, lambda: self.repair_btn.config(state="normal"))
+                        self._safe_after(lambda: self.play_btn.config(state="normal"))
+                        self._safe_after(lambda: self.repair_btn.config(state="normal"))
             else:
-                self.after(0, lambda: self._set_status(
+                self._safe_after(lambda: self._set_status(
                     f"Sem pacote para {self.platform.key}", ACCENT))
 
         except Exception as e:
-            self.after(0, lambda: self._set_status(f"Erro: {str(e)[:50]}", ACCENT))
+            self._safe_after(lambda: self._set_status(f"Erro: {str(e)[:50]}", ACCENT))
 
     def _set_status(self, text, color=TEXT_SECONDARY):
         self.version_label.config(text=text, fg=color)
@@ -502,27 +551,27 @@ class VoxteraLauncher(tk.Tk):
                     pct = (downloaded / total) * 100
                     mb = downloaded / (1024 * 1024)
                     total_mb = total / (1024 * 1024)
-                    self.after(0, lambda: self.progress.config(value=pct))
-                    self.after(0, lambda: self.progress_label.config(
+                    self._safe_after(lambda: self.progress.config(value=pct))
+                    self._safe_after(lambda: self.progress_label.config(
                         text=f"{mb:.1f} / {total_mb:.1f} MB ({pct:.0f}%)"))
 
             def download_status(attempt, max_attempts):
-                self.after(0, lambda: self._set_status(
+                self._safe_after(lambda: self._set_status(
                     f"Baixando... (Tentativa {attempt}/{max_attempts})", TEXT_SECONDARY))
-                self.after(0, lambda: self.progress_label.config(
+                self._safe_after(lambda: self.progress_label.config(
                     text=f"Tentativa {attempt}/{max_attempts}"))
 
-            self.after(0, lambda: self.progress.config(mode="determinate", value=0))
-            self.after(0, lambda: self.progress_label.config(text=""))
-            self.after(0, lambda: self._set_status("Baixando...", TEXT_SECONDARY))
+            self._safe_after(lambda: self.progress.config(mode="determinate", value=0))
+            self._safe_after(lambda: self.progress_label.config(text=""))
+            self._safe_after(lambda: self._set_status("Baixando...", TEXT_SECONDARY))
             download_file(self.download_url, zip_path, progress, status_cb=download_status)
 
             # ── SHA-256 verification via manifest ────────────────────────────────
             expected_sha = None
             if self.manifest_url:
-                self.after(0, lambda: self._set_status("Verificando integridade...", TEXT_SECONDARY))
-                self.after(0, lambda: self.progress.config(mode="indeterminate"))
-                self.after(0, lambda: self.progress.start(15))
+                self._safe_after(lambda: self._set_status("Verificando integridade...", TEXT_SECONDARY))
+                self._safe_after(lambda: self.progress.config(mode="indeterminate"))
+                self._safe_after(lambda: self.progress.start(15))
                 try:
                     manifest = fetch_manifest(self.manifest_url)
                     expected_sha = manifest_sha256_for_platform(
@@ -531,26 +580,26 @@ class VoxteraLauncher(tk.Tk):
                         self.download_asset["name"],
                     )
                 except Exception as me:
-                    self.after(0, lambda: self.progress.stop())
-                    self.after(0, lambda: self.progress.config(mode="determinate", value=0))
+                    self._safe_after(lambda: self.progress.stop())
+                    self._safe_after(lambda: self.progress.config(mode="determinate", value=0))
                     raise RuntimeError(f"Falha ao obter manifest: {str(me)[:80]}")
 
                 if not expected_sha:
-                    self.after(0, lambda: self.progress.stop())
-                    self.after(0, lambda: self.progress.config(mode="determinate", value=0))
+                    self._safe_after(lambda: self.progress.stop())
+                    self._safe_after(lambda: self.progress.config(mode="determinate", value=0))
                     raise RuntimeError(
                         f"Manifest sem SHA-256 para {self.platform.key}")
 
-                self.after(0, lambda: self.progress.stop())
-                self.after(0, lambda: self.progress.config(mode="determinate"))
-                self.after(0, lambda: self._set_status(
+                self._safe_after(lambda: self.progress.stop())
+                self._safe_after(lambda: self.progress.config(mode="determinate"))
+                self._safe_after(lambda: self._set_status(
                     "Calculando SHA-256...", TEXT_SECONDARY))
 
                 zip_size = os.path.getsize(zip_path)
                 def hash_progress(processed):
                     if zip_size > 0:
                         pct = (processed / zip_size) * 100
-                        self.after(0, lambda p=pct: self.progress.config(value=p))
+                        self._safe_after(lambda p=pct: self.progress.config(value=p))
 
                 actual_sha = compute_sha256(zip_path, hash_progress)
 
@@ -559,23 +608,23 @@ class VoxteraLauncher(tk.Tk):
                         os.remove(zip_path)
                     except OSError:
                         pass
-                    self.after(0, lambda: self.progress.config(value=0))
+                    self._safe_after(lambda: self.progress.config(value=0))
                     raise RuntimeError(
                         f"SHA-256 não confere!\n"
                         f"  Esperado: {expected_sha[:16]}...\n"
                         f"  Obtido:   {actual_sha[:16]}...\n"
                         f"O arquivo pode estar corrompido.")
-                self.after(0, lambda: self._set_status(
+                self._safe_after(lambda: self._set_status(
                     "✓ Integridade verificada", GREEN))
             else:
                 # No manifest found — proceed but warn
-                self.after(0, lambda: self._set_status(
+                self._safe_after(lambda: self._set_status(
                     "⚠ Sem manifest (integridade não verificada)", ACCENT))
 
             # ── Extract ──────────────────────────────────────────────────────────
-            self.after(0, lambda: self._set_status("Extraindo...", TEXT_SECONDARY))
-            self.after(0, lambda: self.progress.config(mode="indeterminate"))
-            self.after(0, lambda: self.progress.start(15))
+            self._safe_after(lambda: self._set_status("Extraindo...", TEXT_SECONDARY))
+            self._safe_after(lambda: self.progress.config(mode="indeterminate"))
+            self._safe_after(lambda: self.progress.start(15))
 
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(install_dir)
@@ -584,27 +633,27 @@ class VoxteraLauncher(tk.Tk):
             self.cfg["installed_version"] = target_version
             save_config(self.cfg)
 
-            self.after(0, lambda: self.progress.stop())
-            self.after(0, lambda: self.progress.config(mode="determinate", value=100))
-            self.after(0, lambda: self.progress_label.config(text=""))
-            self.after(0, lambda: self._set_status(
+            self._safe_after(lambda: self.progress.stop())
+            self._safe_after(lambda: self.progress.config(mode="determinate", value=100))
+            self._safe_after(lambda: self.progress_label.config(text=""))
+            self._safe_after(lambda: self._set_status(
                 f"✓ Instalado ({target_version})", GREEN))
-            self.after(0, lambda: self.local_ver_label.config(
+            self._safe_after(lambda: self.local_ver_label.config(
                 text=f"Instalado: {target_version}"))
-            self.after(0, lambda: self.play_btn.config(state="normal"))
-            self.after(0, lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="disabled"))
-            self.after(0, lambda: self.repair_btn.config(text="✦  REPARAR", state="normal"))
+            self._safe_after(lambda: self.play_btn.config(state="normal"))
+            self._safe_after(lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="disabled"))
+            self._safe_after(lambda: self.repair_btn.config(text="✦  REPARAR", state="normal"))
 
         except Exception as e:
             err_msg = str(e)[:120]
-            self.after(0, lambda: self._set_status(f"Erro: {err_msg}", ACCENT))
-            self.after(0, lambda: messagebox.showerror("Erro", str(e)))
-            self.after(0, lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="normal"))
-            self.after(0, lambda: self.repair_btn.config(text="✦  REPARAR", state="normal"))
+            self._safe_after(lambda: self._set_status(f"Erro: {err_msg}", ACCENT))
+            self._safe_after(lambda: messagebox.showerror("Erro", str(e)))
+            self._safe_after(lambda: self.update_btn.config(text="⟳  ATUALIZAR", state="normal"))
+            self._safe_after(lambda: self.repair_btn.config(text="✦  REPARAR", state="normal"))
             try:
-                self.after(0, lambda: self.progress.stop())
-                self.after(0, lambda: self.progress.config(mode="determinate", value=0))
-                self.after(0, lambda: self.progress_label.config(text=""))
+                self._safe_after(lambda: self.progress.stop())
+                self._safe_after(lambda: self.progress.config(mode="determinate", value=0))
+                self._safe_after(lambda: self.progress_label.config(text=""))
             except Exception:
                 pass
         finally:
@@ -650,6 +699,15 @@ class VoxteraLauncher(tk.Tk):
                 self.play_btn.config(state="disabled")
                 self._set_status("Jogo não instalado", ACCENT)
                 self.local_ver_label.config(text="")
+
+
+    def destroy(self):
+        # Signal worker threads to stop calling self.after.
+        self._tk_alive = False
+        try:
+            super().destroy()
+        except Exception:
+            pass
 
 # ── Entry Point ────────────────────────────────────────────────────────────────
 
