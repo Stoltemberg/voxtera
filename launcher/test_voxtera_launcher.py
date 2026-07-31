@@ -5,10 +5,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import queue
+import shutil
+import ssl
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
+from urllib.error import URLError
 import zipfile
+
+import certifi
 
 import voxtera_launcher as launcher
 from voxtera_launcher import (
@@ -79,6 +85,91 @@ class UserConfigurationTests(unittest.TestCase):
             self.assertFalse(
                 launcher.is_inside_launcher_bundle(root / "Games" / "Voxtera", base_dir=bundle / "Contents" / "MacOS")
             )
+
+
+class TlsCertificateTests(unittest.TestCase):
+    def test_frozen_launcher_uses_bundled_ca_and_keeps_tls_verification_enabled(self) -> None:
+        """The distributed macOS app must not rely on the launcher's inherited shell CA path."""
+        with tempfile.TemporaryDirectory() as directory:
+            resource_root = Path(directory)
+            certificate = resource_root / "certifi" / "cacert.pem"
+            certificate.parent.mkdir()
+            shutil.copyfile(certifi.where(), certificate)
+
+            with patch.object(launcher.sys, "frozen", True, create=True), patch.object(
+                launcher.sys,
+                "_MEIPASS",
+                str(resource_root),
+                create=True,
+            ):
+                context = launcher.create_https_context()
+
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(context.check_hostname)
+        self.assertGreater(len(context.get_ca_certs()), 0)
+
+    def test_tls_validation_failure_has_a_concise_user_facing_message(self) -> None:
+        error = URLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
+
+        self.assertEqual(
+            launcher.update_check_error_message(error),
+            "Não foi possível validar o certificado HTTPS. Verifique a data, a hora e a rede.",
+        )
+
+    def test_api_get_passes_the_verifying_context_to_urlopen(self) -> None:
+        context = object()
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return b"[]"
+
+        with patch.object(launcher, "create_https_context", return_value=context), patch.object(
+            launcher,
+            "urlopen",
+            return_value=Response(),
+        ) as mocked_urlopen:
+            self.assertEqual(launcher.api_get("https://example.invalid/releases"), [])
+
+        self.assertIs(mocked_urlopen.call_args.kwargs["context"], context)
+
+    def test_download_passes_the_verifying_context_to_urlopen(self) -> None:
+        context = object()
+
+        class Response:
+            headers = {"Content-Length": "2"}
+
+            def __init__(self):
+                self._chunks = iter((b"ok", b""))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self, chunk_size):
+                return next(self._chunks)
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            launcher,
+            "create_https_context",
+            return_value=context,
+        ), patch.object(launcher, "urlopen", return_value=Response()) as mocked_urlopen:
+            destination = Path(directory) / "archive.zip"
+            launcher._download_file_once("https://example.invalid/archive.zip", destination)
+            self.assertEqual(destination.read_bytes(), b"ok")
+
+        self.assertIs(mocked_urlopen.call_args.kwargs["context"], context)
+
+    def test_macos_buttons_use_dark_text_on_the_native_light_control_surface(self) -> None:
+        self.assertEqual(launcher.button_foreground("Darwin"), "#1f2937")
+        self.assertEqual(launcher.button_foreground("Windows"), launcher.TEXT_PRIMARY)
 
 
 class ArchiveValidationTests(unittest.TestCase):

@@ -8,6 +8,11 @@
       "permanent": false
     },
     {
+      "source": "/downloads/VoxteraLauncher-macos-x86_64-v0.4.2.app.zip",
+      "destination": "https://github.com/Stoltemberg/voxtera/releases/download/launcher-v0.4.2/VoxteraLauncher-macos-x86_64-v0.4.2.app.zip",
+      "permanent": false
+    },
+    {
       "source": "/downloads/VoxteraLauncher-macos-x86_64-v0.4.1.app.zip",
       "destination": "https://github.com/Stoltemberg/voxtera/releases/download/launcher-v0.4.1/VoxteraLauncher-macos-x86_64-v0.4.1.app.zip",
       "permanent": false
@@ -19,7 +24,7 @@
     },
     {
       "source": "/downloads/VoxteraLauncher.app.zip",
-      "destination": "https://github.com/Stoltemberg/voxtera/releases/download/launcher-v0.4.1/VoxteraLauncher-macos-x86_64-v0.4.1.app.zip",
+      "destination": "https://github.com/Stoltemberg/voxtera/releases/download/launcher-v0.4.2/VoxteraLauncher-macos-x86_64-v0.4.2.app.zip",
       "permanent": false
     }
   ]

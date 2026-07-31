@@ -10,6 +10,7 @@ import logging
 import os
 import platform
 import socket
+import ssl
 import subprocess
 import sys
 import queue
@@ -36,7 +37,7 @@ BASE_DIR = get_base_dir()
 GITHUB_REPO = "Stoltemberg/voxtera"
 GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
 APP_NAME = "Voxtera"
-LAUNCHER_VERSION = "0.4.1"
+LAUNCHER_VERSION = "0.4.2"
 
 
 def _user_home(home=None):
@@ -246,6 +247,11 @@ TEXT_DIM = "#484f58"
 BORDER = "#30363d"
 UI_QUEUE_BATCH_SIZE = 64
 
+
+def button_foreground(system_name=None):
+    """Keep native macOS buttons legible when Aqua renders a light control face."""
+    return "#1f2937" if (system_name or platform.system()) == "Darwin" else TEXT_PRIMARY
+
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 def _default_config():
@@ -315,15 +321,57 @@ def save_config(cfg, config_file=None):
 
 # ── Network ────────────────────────────────────────────────────────────────────
 
+TLS_CA_BUNDLE_RESOURCE = Path("certifi") / "cacert.pem"
+
+
+def tls_ca_bundle_path():
+    """Return the CA bundle that must accompany a frozen launcher.
+
+    A Finder-launched macOS app does not inherit the shell's ``SSL_CERT_FILE``.
+    Therefore a frozen build must carry its own CA bundle rather than relying on
+    a machine-specific Python installation or environment variable.
+    """
+    if getattr(sys, "frozen", False):
+        resource_root = Path(getattr(sys, "_MEIPASS", BASE_DIR))
+        bundle = resource_root / TLS_CA_BUNDLE_RESOURCE
+        if not bundle.is_file():
+            raise RuntimeError("Pacote do launcher não contém certificados TLS")
+        return bundle
+
+    try:
+        import certifi
+    except ImportError as exc:
+        raise RuntimeError("Dependência certifi ausente para validar conexões HTTPS") from exc
+
+    bundle = Path(certifi.where())
+    if not bundle.is_file():
+        raise RuntimeError("Bundle CA do certifi não foi encontrado")
+    return bundle
+
+
+def create_https_context():
+    """Create a certificate-verifying HTTPS context from the packaged CA bundle."""
+    return ssl.create_default_context(cafile=str(tls_ca_bundle_path()))
+
+
+def update_check_error_message(exc):
+    """Turn common update failures into concise UI text; diagnostics stay in the log."""
+    if isinstance(exc, URLError) and isinstance(exc.reason, ssl.SSLCertVerificationError):
+        return "Não foi possível validar o certificado HTTPS. Verifique a data, a hora e a rede."
+    if isinstance(exc, (URLError, socket.timeout, ConnectionError, TimeoutError)):
+        return "Não foi possível acessar as atualizações. Verifique a rede e tente novamente."
+    return f"Não foi possível verificar atualizações: {str(exc)[:80]}"
+
+
 def api_get(url, timeout=30):
     req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "VoxteraLauncher"})
-    with urlopen(req, timeout=timeout) as resp:
+    with urlopen(req, timeout=timeout, context=create_https_context()) as resp:
         return json.loads(resp.read().decode())
 
 def _download_file_once(url, dest, progress_cb=None):
     """Single download attempt. Raises on any network/IO error."""
     req = Request(url, headers={"User-Agent": "VoxteraLauncher"})
-    with urlopen(req, timeout=120) as resp:
+    with urlopen(req, timeout=120, context=create_https_context()) as resp:
         total = int(resp.headers.get("Content-Length", 0))
         downloaded = 0
         chunk_size = 65536
@@ -584,8 +632,15 @@ class VoxteraLauncher(tk.Tk):
                                 highlightthickness=1)
         status_frame.pack(fill="x", pady=(0, 10), ipady=10)
 
-        self.version_label = tk.Label(status_frame, text="Verificando atualizações...",
-                                       font=("Consolas", 10), bg=BG_MEDIUM, fg=TEXT_SECONDARY)
+        self.version_label = tk.Label(
+            status_frame,
+            text="Verificando atualizações...",
+            font=("Consolas", 10),
+            bg=BG_MEDIUM,
+            fg=TEXT_SECONDARY,
+            justify="center",
+            wraplength=430,
+        )
         self.version_label.pack(pady=(5, 2))
 
         self.local_ver_label = tk.Label(status_frame, text="", font=("Consolas", 9),
@@ -610,22 +665,24 @@ class VoxteraLauncher(tk.Tk):
         self.progress_label.pack(anchor="w", pady=(0, 15))
 
         # ── Buttons ────────────────────────────────────────────────────────────
+        button_text = button_foreground()
         btn_style = {"font": ("Consolas", 14, "bold"), "width": 22, "height": 2,
-                     "bd": 0, "cursor": "hand2", "relief": "flat"}
+                     "bd": 0, "cursor": "hand2", "relief": "flat",
+                     "fg": button_text, "activeforeground": button_text}
 
         self.play_btn = tk.Button(main, text="▶  JOGAR", bg=GREEN,
-                                   fg=TEXT_PRIMARY, activebackground=GREEN_DARK,
+                                   activebackground=GREEN_DARK,
                                    command=self._play, **btn_style)
         self.play_btn.pack(pady=(0, 8))
 
         self.update_btn = tk.Button(main, text="⟳  ATUALIZAR", bg=ACCENT,
-                                     fg=TEXT_PRIMARY, activebackground=ACCENT_HOVER,
+                                     activebackground=ACCENT_HOVER,
                                      command=self._update, **btn_style)
         self.update_btn.pack(pady=(0, 8))
         self.update_btn.config(state="disabled")
 
         self.repair_btn = tk.Button(main, text="✦  REPARAR", bg=ACCENT,
-                                     fg=TEXT_PRIMARY, activebackground=ACCENT_HOVER,
+                                     activebackground=ACCENT_HOVER,
                                      command=self._repair, **btn_style)
         self.repair_btn.pack(pady=(0, 15))
         self.repair_btn.config(state="disabled")
@@ -659,7 +716,8 @@ class VoxteraLauncher(tk.Tk):
             dir_row,
             text="ESCOLHER PASTA…",
             bg=BG_LIGHT,
-            fg=TEXT_PRIMARY,
+            fg=button_text,
+            activeforeground=button_text,
             font=("Consolas", 8, "bold"),
             bd=0,
             cursor="hand2",
@@ -750,7 +808,7 @@ class VoxteraLauncher(tk.Tk):
                     f"Sem pacote para {self.platform.key}", ACCENT))
 
         except Exception as exc:
-            error_message = str(exc)[:50]
+            error_message = update_check_error_message(exc)
             self._logger.exception("Update check failed")
             self._post_ui(lambda message=error_message: self._set_status(f"Erro: {message}", ACCENT))
 

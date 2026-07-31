@@ -5,6 +5,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/) e versi
 
 ---
 
+## [Launcher 0.4.2] — 2026-07-31
+
+### Corrigido
+- **HTTPS no launcher congelado:** o `.app` agora carrega o bundle de autoridades certificadoras do `certifi` e cria um contexto TLS com validação de certificado e hostname obrigatória para API, manifesto e downloads. Não depende mais de `SSL_CERT_FILE` herdado do terminal.
+- O ambiente de build PyInstaller foi declarado com versões fixadas em `launcher/requirements-build.txt`, evitando artefatos gerados com dependências implícitas do ambiente local.
+- Erros de validação TLS exibem uma mensagem curta e acionável na interface; o traceback completo permanece em `launcher.log`.
+- Em macOS, os botões usam texto escuro sobre a superfície nativa clara do Aqua para preservar contraste.
+
 ## [Launcher 0.4.1] — 2026-07-31
 
 ### Corrigido

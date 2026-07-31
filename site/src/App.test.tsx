@@ -47,7 +47,7 @@ describe("App", () => {
     });
     expect(macosDownloads).toHaveLength(2);
     macosDownloads.forEach((action) => {
-      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher-macos-x86_64-v0.4.1.app.zip");
+      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher-macos-x86_64-v0.4.2.app.zip");
     });
   });
 
@@ -64,7 +64,7 @@ describe("App", () => {
     );
     expect(screen.getAllByRole("link", { name: "Baixar launcher para macOS (.app)" })[0]).toHaveAttribute(
       "href",
-      "/downloads/VoxteraLauncher-macos-x86_64-v0.4.1.app.zip",
+      "/downloads/VoxteraLauncher-macos-x86_64-v0.4.2.app.zip",
     );
   });
 
