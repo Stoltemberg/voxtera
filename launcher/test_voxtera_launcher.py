@@ -7,6 +7,7 @@ from pathlib import Path
 import queue
 import shutil
 import ssl
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -170,6 +171,47 @@ class TlsCertificateTests(unittest.TestCase):
     def test_macos_buttons_use_dark_text_on_the_native_light_control_surface(self) -> None:
         self.assertEqual(launcher.button_foreground("Darwin"), "#1f2937")
         self.assertEqual(launcher.button_foreground("Windows"), launcher.TEXT_PRIMARY)
+
+class PlayActionTests(unittest.TestCase):
+    """Reproduce the silent-failure bug when game binary lacks +x."""
+
+    def test_popen_raises_permission_error_when_game_binary_is_not_executable(self) -> None:
+        """Demonstrates that the current _play code path fails silently on macOS
+        because the extracted game binary is -rw-r--r-- (no execute bit)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = platform_spec("Darwin")
+            game_path = Path(tmp).joinpath(*spec.executable_path)
+            game_path.parent.mkdir(parents=True, exist_ok=True)
+            game_path.write_text("#!/bin/sh\nexit 0\n")
+            # Confirm it IS a file (so _play enters the Popen branch)
+            self.assertTrue(game_path.is_file())
+            # But without +x, Popen raises PermissionError
+            self.assertEqual(oct(game_path.stat().st_mode)[-3:], "644")
+            with self.assertRaises(PermissionError):
+                subprocess.Popen([str(game_path)], cwd=tmp)
+
+    def test_extracted_binaries_receive_execute_permissions(self) -> None:
+        """After extraction, platform-specific executables must be +x."""
+        with tempfile.TemporaryDirectory() as tmp:
+            zip_path = Path(tmp) / "test.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("Voxtera.app/Contents/MacOS/Voxtera", "#!/bin/sh\nexit 0\n")
+                zf.writestr("Voxtera.app/Contents/MacOS/Voxtera-bin", "binary-contents")
+                zf.writestr("Voxtera.app/Contents/Resources/assets/placeholder", "data")
+            install_dir = Path(tmp) / "install"
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(install_dir)
+            spec = platform_spec("Darwin")
+            # Before the fix: files are 644
+            exe = install_dir / "Voxtera.app" / "Contents" / "MacOS" / "Voxtera"
+            bin_ = install_dir / "Voxtera.app" / "Contents" / "MacOS" / "Voxtera-bin"
+            self.assertFalse(os.access(exe, os.X_OK))
+            self.assertFalse(os.access(bin_, os.X_OK))
+            # Apply the fix
+            launcher._fix_extracted_executable_permissions(str(install_dir), spec)
+            # After the fix: both must be executable
+            self.assertTrue(os.access(exe, os.X_OK))
+            self.assertTrue(os.access(bin_, os.X_OK))
 
 
 class ArchiveValidationTests(unittest.TestCase):

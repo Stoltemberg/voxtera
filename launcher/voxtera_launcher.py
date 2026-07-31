@@ -232,6 +232,25 @@ def game_launch_environment(install_dir, spec, environ=None):
         environment["VELOREN_ASSETS"] = str(assets_dir)
     return environment
 
+
+def _fix_extracted_executable_permissions(install_dir, spec):
+    """Set +x on game executables after extraction.
+
+    GitHub Actions zips do not preserve Unix permission bits.
+    Without this, subprocess.Popen raises PermissionError on macOS/Linux.
+    """
+    install_path = Path(install_dir)
+    full = install_path.joinpath(*spec.executable_path)
+    if full.is_file() and not os.access(full, os.X_OK):
+        full.chmod(full.stat().st_mode | 0o111)
+    # Also fix the sibling binary if present (macOS app bundles ship
+    # a shell wrapper + a native Mach-O binary).
+    if spec.key == "macos-universal":
+        macos_dir = full.parent
+        for sibling in macos_dir.iterdir() if macos_dir.is_dir() else ():
+            if sibling.is_file() and not os.access(sibling, os.X_OK):
+                sibling.chmod(sibling.stat().st_mode | 0o111)
+
 # ── Theme ──────────────────────────────────────────────────────────────────────
 BG_DARK = "#0d1117"
 BG_MEDIUM = "#161b22"
@@ -938,6 +957,8 @@ class VoxteraLauncher(tk.Tk):
                 zf.extractall(install_dir)
             os.remove(zip_path)
 
+            _fix_extracted_executable_permissions(install_dir, self.platform)
+
             self.cfg["installed_version"] = target_version
             save_config(self.cfg)
 
@@ -974,12 +995,37 @@ class VoxteraLauncher(tk.Tk):
     def _play(self):
         game_path = installed_game_path(self.cfg["install_dir"], self.platform)
         if game_path.is_file():
-            subprocess.Popen(
-                [str(game_path)],
-                cwd=self.cfg["install_dir"],
-                env=game_launch_environment(self.cfg["install_dir"], self.platform),
-            )
-            self.destroy()
+            try:
+                subprocess.Popen(
+                    [str(game_path)],
+                    cwd=self.cfg["install_dir"],
+                    env=game_launch_environment(self.cfg["install_dir"], self.platform),
+                )
+                self.destroy()
+            except PermissionError:
+                # Self-heal: GitHub Actions zips don't preserve Unix +x bits.
+                _fix_extracted_executable_permissions(
+                    self.cfg["install_dir"], self.platform
+                )
+                try:
+                    subprocess.Popen(
+                        [str(game_path)],
+                        cwd=self.cfg["install_dir"],
+                        env=game_launch_environment(
+                            self.cfg["install_dir"], self.platform
+                        ),
+                    )
+                    self.destroy()
+                except Exception as exc:
+                    messagebox.showerror(
+                        "Erro ao iniciar o jogo",
+                        f"Não foi possível executar {game_path.name}.\n\n{exc}",
+                    )
+            except Exception as exc:
+                messagebox.showerror(
+                    "Erro ao iniciar o jogo",
+                    f"Não foi possível executar {game_path.name}.\n\n{exc}",
+                )
         else:
             messagebox.showerror(
                 "Jogo não encontrado",
