@@ -287,20 +287,21 @@ class VoxteraLauncher(tk.Tk):
         self._downloading = False
         self._ui_queue = queue.Queue()
         self._tk_alive = True
+        self._pump_stop = threading.Event()
 
         self._build_ui()
-        self._start_queue_pump()
+        self._start_queue_pump_thread()
         self._check_updates_thread()
-
 
     def _safe_after(self, func):
         """Schedule a UI update from any thread.
 
-        Tk widgets are not thread-safe; on macOS PyInstaller bundles the worker
-        thread often invokes ``self.after(0, ...)`` while the main loop is not
-        in the right apartment, which raises ``RuntimeError: main thread is
-        not in main loop``. We catch that and fall back to a thread-safe
-        ``queue.Queue`` drained by ``_pump_queue`` from the main loop.
+        Tk widgets are not thread-safe; on macOS PyInstaller bundles the
+        worker thread often invokes ``self.after(0, ...)`` while the main
+        loop is not in the right apartment, which raises
+        ``RuntimeError: main thread is not in main loop``.
+        We catch that and fall back to a thread-safe ``queue.Queue``
+        drained by ``_pump_dispatch`` from a dedicated pump thread.
         """
         if not self._tk_alive:
             return
@@ -310,32 +311,48 @@ class VoxteraLauncher(tk.Tk):
         except RuntimeError:
             self._ui_queue.put(func)
 
-    def _pump_queue(self):
-        """Drain queued UI updates from worker threads.
-        Must be called from the main thread (i.e. via ``self.after``). It
-        reschedules itself every 50 ms while the launcher is alive.
+    def _pump_dispatch(self):
+        """Drain the queue from the pump thread.
+
+        Each callback is dispatched via ``self.after(0, ...)`` so that
+        the actual widget mutation runs on the main thread (Tk's event
+        loop). If ``self.after`` itself is broken (e.g. mainloop not
+        yet running), the callback is re-enqueued for the next cycle.
         """
         if not self._tk_alive:
             return
+        batch = []
         while True:
             try:
-                func = self._ui_queue.get_nowait()
+                batch.append(self._ui_queue.get_nowait())
             except queue.Empty:
                 break
+        for func in batch:
             try:
-                func()
-            except Exception as exc:
-                # Don't let one bad update break the pump.
-                print(f"VoxteraLauncher: queued UI update failed: {exc}")
-        self.after(50, self._pump_queue)
+                self.after(0, func)
+            except RuntimeError:
+                # mainloop not ready yet – re-enqueue for later
+                self._ui_queue.put(func)
+                break  # stop processing; retry next pump cycle
 
-    def _start_queue_pump(self):
-        try:
-            self.after(50, self._pump_queue)
-        except RuntimeError:
-            # The Tk mainloop is not yet ready; the queue will back up until
-            # mainloop kicks in (handled by the OS event scheduler).
-            pass
+    def _start_queue_pump_thread(self):
+        """Run the queue pump on a daemon thread.
+
+        Unlike the previous ``self.after``-based pump, this does NOT
+        depend on ``self.after`` for the pump loop itself. The pump
+        thread runs unconditionally and dispatches to Tk via
+        ``self.after(0, ...)`` when possible, re-enqueuing on failure.
+        """
+        def _loop():
+            while not self._pump_stop.is_set():
+                try:
+                    self._pump_dispatch()
+                except Exception:
+                    pass
+                self._pump_stop.wait(0.05)  # 50 ms interval
+
+        t = threading.Thread(target=_loop, daemon=True, name="voxtera-pump")
+        t.start()
 
     # ── UI ─────────────────────────────────────────────────────────────────────
 

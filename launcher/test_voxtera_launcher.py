@@ -145,19 +145,19 @@ class TkThreadSafeAfterTests(unittest.TestCase):
         import voxtera_launcher as M
         fl = self._FakeLauncher()
         fl._safe_after = M.VoxteraLauncher._safe_after.__get__(fl)
-        fl._pump_queue = M.VoxteraLauncher._pump_queue.__get__(fl)
+        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
 
         # First update: after() raises, so the call should land in the queue
         fl._safe_after(lambda: fl._set_status("Nova versão: v0.4.0", None))
         self.assertEqual(fl._status_text, "Verificando atualizações...")
         self.assertEqual(fl._ui_queue.qsize(), 1)
 
-    def test_pump_queue_drains_pending_updates(self):
+    def test_pump_dispatch_drains_pending_updates(self):
         import queue as _queue
         import voxtera_launcher as M
         fl = self._FakeLauncher()
         fl._safe_after = M.VoxteraLauncher._safe_after.__get__(fl)
-        fl._pump_queue = M.VoxteraLauncher._pump_queue.__get__(fl)
+        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
 
         # Pre-populate the queue as a worker thread would
         fl._safe_after(lambda: fl._set_status("Status A", None))
@@ -207,7 +207,7 @@ class TkThreadSafeAfterTests(unittest.TestCase):
 
         fl = ThreadProbe()
         fl._safe_after = M.VoxteraLauncher._safe_after.__get__(fl)
-        fl._pump_queue = M.VoxteraLauncher._pump_queue.__get__(fl)
+        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
 
         # Replicate the _do_check_updates body wrapped in def, no need to
         # spawn the real Tk app.
@@ -248,6 +248,48 @@ class TkThreadSafeAfterTests(unittest.TestCase):
             fl._status_text.startswith("Nova versão: ") or fl._status_text.startswith("Erro: "),
             f"status did not advance: {fl._status_text!r}",
         )
+
+
+    def test_pump_dispatch_re_enqueues_when_after_fails(self):
+        """When self.after(0, func) raises RuntimeError (macOS PyInstaller),
+        pump_dispatch should re-enqueue items instead of losing them."""
+        import voxtera_launcher as M
+
+        class _BrokenAfterLauncher:
+            def __init__(self):
+                import queue as _q
+                self._ui_queue = _q.Queue()
+                self._tk_alive = True
+            def after(self, ms, func):
+                raise RuntimeError("main thread is not in main loop")
+
+        fl = _BrokenAfterLauncher()
+        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
+
+        fl._ui_queue.put(lambda: None)
+        fl._ui_queue.put(lambda: None)
+        self.assertEqual(fl._ui_queue.qsize(), 2)
+
+        # pump_dispatch should re-enqueue because after() fails
+        fl._pump_dispatch()
+
+        # Items should still be in the queue (re-enqueued)
+        self.assertTrue(fl._ui_queue.qsize() >= 1)
+
+    def test_pump_dispatch_stops_when_tk_alive_false(self):
+        import voxtera_launcher as M
+
+        class _Fake:
+            def __init__(self):
+                import queue as _q
+                self._ui_queue = _q.Queue()
+                self._tk_alive = False
+
+        fl = _Fake()
+        fl._pump_dispatch = M.VoxteraLauncher._pump_dispatch.__get__(fl)
+        fl._ui_queue.put(lambda: None)
+        fl._pump_dispatch()
+        self.assertEqual(fl._ui_queue.qsize(), 1)
 
 if __name__ == "__main__":
     unittest.main()
