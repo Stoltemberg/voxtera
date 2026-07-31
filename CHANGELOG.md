@@ -5,6 +5,40 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/) e versi
 
 ---
 
+## [0.4.0] — 2026-07-30
+
+### Adicionado
+- **Distribuição macOS universal:** o CI gera `Voxtera.app` com binário `x86_64` + `arm64` (via `lipo`), assets empacotados em `Contents/Resources/assets` e `VELOREN_ASSETS` definido pelo wrapper de lançamento.
+- **Launcher Python multi-plataforma:** detecta Windows ou macOS, escolhe o artefato correto no release e prepara o ambiente com `VELOREN_ASSETS` antes de iniciar o jogo. No macOS gera um bundle `.app` `universal2`; o PyInstaller spec não usa mais extensões nativas (como Pillow) para manter compatibilidade universal.
+- **Site com download por plataforma:** botões separados para `VoxteraLauncher.exe` (Windows) e `VoxteraLauncher.app.zip` (macOS).
+
+### Polido
+- **Aba Social (FriendsPanel, tecla `O`):**
+  - Seção "Convidar Amigos" na aba `Group` só aparece quando há membros no grupo ou convite aberto pendente — não flutua mais sobre a lista vazia.
+  - Botões `Kick` e `Promote` na aba `Group` com fonte `10pt` (antes `9pt`) e área de toque expandida (`56×22` e `64×22`).
+  - Destaque visual da aba ativa: underline dourada (`rgba(1, 0.85, 0.3, 0.85)`) sob o botão da tab selecionada.
+  - Ao receber um convite de grupo, o prompt "`{name}` convidou você para o grupo" é exibido ao lado dos botões **Aceitar/Rejeitar**.
+  - Status dot verde de membros do grupo preserva legibilidade com cor extraída em variável.
+- **i18n:** Novas entradas `hud-friends-group-invite-open` em EN e PT-BR.
+
+### Alterado
+- G. 825 8d8feqq549084a30 daable323d9882f6aa2139ecf3b3ecf substituído por `path = toString ./.` para compatibilidade com Nix 2.35 puro (em vez de `./.`).
+- `.gitignore` inclui exceção para `!site/public/downloads/VoxteraLauncher.app.zip`.
+
+## [0.2.6] — 2026-07-29
+
+### Adicionado
+- **Party Chat (Fase 1.4 do roadmap multiplayer):** novo canal de chat de grupo acessível pelos comandos `/p <mensagem>`, `/party <mensagem>`, `/g <mensagem>` e `/group <mensagem>`.
+- **Aba "Grupo" no chat HUD** (4ª aba pré-configurada) — filtra apenas mensagens do grupo (ChatType::Group + GroupMeta + mortes/activity de membros do grupo). Perfis já existentes recebem a aba por uma migração única, sem recriá-la se o jogador a remover depois.
+- **Aliases de comando `/p` e `/party`** registrados via novo método `ServerChatCommand::aliases()` no `common/src/cmd.rs` — os aliases são resolvidos pelo `FromStr` junto com `keyword()` e `short_keyword()`.
+- **Switch automático de ChatMode:** ao digitar `/p` (sem mensagem) o cliente troca o modo de chat para Grupo, igual ao comportamento de `/g` e `/group`.
+- **i18n PT-BR + EN atualizado:** `hud-chat-meta-group-join-hint` agora menciona `/p` além de `/g` e `/group`.
+
+### Alterado
+- `handle_party_chat` (server/src/lib.rs) não rejeita mais mensagem vazia com erro de "Uso"; em vez disso, alterna o `ChatMode` do jogador para `Group` e notifica o cliente, espelhando o handler upstream `handle_group`.
+
+---
+
 ## [0.2.4] — 2026-07-22
 
 ### Adicionado

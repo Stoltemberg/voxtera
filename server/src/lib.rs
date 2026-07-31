@@ -1626,21 +1626,10 @@ impl Server {
         info!(?player_alias, ?action_str, "Admin action received");
     }
 
-    /// Handle `/p <mensagem>` — send a message to the player's current group.
-    /// Works without changing the persistent ChatMode.
+    /// Handle `/p <mensagem>` — send a message to the player's current group
+    /// and activate group chat as their current ChatMode.
     fn handle_party_chat(&mut self, entity: EcsEntity, args: Vec<String>) {
         let message = args.join(" ");
-        if message.is_empty() {
-            self.notify_client(
-                entity,
-                ServerGeneral::server_msg(
-                    ChatType::CommandError,
-                    Content::Plain("Uso: /p <mensagem>".to_string()),
-                ),
-            );
-            return;
-        }
-
         let ecs = self.state.ecs();
         let uids = ecs.read_storage::<Uid>();
         let groups = ecs.read_storage::<comp::Group>();
@@ -1664,10 +1653,24 @@ impl Server {
             },
         };
 
-        let msg = ChatType::Group(from, group).into_msg(Content::Plain(message));
+        // If a message was provided, send it to the group.
+        if !message.is_empty() {
+            let msg = ChatType::Group(from, group).into_msg(Content::Plain(message));
+            // Use the state's chat resolution pipeline
+            self.state.send_chat(msg, true);
+        }
 
-        // Use the state's chat resolution pipeline
-        self.state.send_chat(msg, true);
+        // In both cases (with or without a message), switch the player's chat
+        // mode to Group so subsequent messages go to the party by default.
+        let mode = comp::ChatMode::Group;
+        drop(groups);
+        drop(uids);
+        let _ = self
+            .state
+            .ecs_mut()
+            .write_storage::<comp::ChatMode>()
+            .insert(entity, mode.clone());
+        self.notify_client(entity, ServerGeneral::ChatMode(mode));
     }
 
     /// Handle `/addfriend <playername>` — send a friend request to another

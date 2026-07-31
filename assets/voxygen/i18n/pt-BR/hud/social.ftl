@@ -41,6 +41,8 @@ hud-friends-group-invite-title = Convidar Amigos
 hud-friends-group-kick = Expulsar
 hud-friends-group-promote = Promover
 hud-friends-group-leave = Sair do Grupo
+hud-friends-group-invite-open =
+  { $name } convidou você para o grupo
 hud-friends-empty = Sua lista de amigos está vazia
 hud-friends-no-requests = Nenhum pedido pendente
 hud-friends-no-players = Nenhum jogador encontrado

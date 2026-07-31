@@ -2,7 +2,7 @@
   description = "Flake providing Veloren, a multiplayer voxel RPG written in Rust.";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+      nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
     nci = {
       url = "github:90-008/nix-cargo-integration";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -63,7 +63,7 @@
   in
     inp.parts.lib.mkFlake {inputs = inp;} {
       imports = [inp.nci.flakeModule];
-      systems = ["x86_64-linux"];
+      systems = ["x86_64-linux" "x86_64-darwin"];
       perSystem = {
         config,
         pkgs,
@@ -171,21 +171,21 @@
             release-thinlto.features = ["default-publish"];
             release-thinlto.runTests = false;
           };
-          runtimeLibs = with pkgs; [
-            wayland
-            wayland-protocols
-            libX11
-            libXi
-            libxcb
-            libXcursor
-            libXrandr
-            libxkbcommon
-            shaderc.lib
-            udev
-            alsa-lib
-            vulkan-loader
-            stdenv.cc.cc.lib
-          ];
+          # Linux-only runtime libs
+          runtimeLibs = with pkgs; (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") wayland) ++
+            (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") wayland-protocols) ++
+            (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") libX11) ++
+            (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") libXi) ++
+            (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") libxcb) ++
+            (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") libXcursor) ++
+            (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") libXrandr) ++
+            [ libxkbcommon
+              shaderc.lib
+            ] ++ (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") udev) ++
+            (lib.optional (stdenv.hostPlatform.system == "x86_64-linux") alsa-lib) ++
+            [ vulkan-loader
+              stdenv.cc.cc.lib
+            ] ++ (lib.optional (stdenv.hostPlatform.system == "aarch64-darwin" || stdenv.hostPlatform.system == "x86_64-darwin") moltenvk);
           depsDrvConfig = {
             env =
               veloren-common-env
@@ -194,13 +194,13 @@
               };
             mkDerivation = {
               buildInputs = with pkgs; [
-                alsa-lib
                 libxkbcommon
+                fontconfig
+              ] ++ (lib.optionals (stdenv.hostPlatform.system == "x86_64-linux") [
+                alsa-lib
                 udev
                 libxcb
-
-                fontconfig
-              ];
+              ]);
               nativeBuildInputs = with pkgs; [
                 python3
                 pkg-config

@@ -95,7 +95,7 @@ hud-chat-singleplayer-motd2 = How's the serenity?
 
 # Meta/system messages about chat commands. These follow the language the player
 # selected in the game settings, regardless of the server locale.
-hud-chat-meta-group-join-hint = Type /g or /group to chat with your group members.
+hud-chat-meta-group-join-hint = Type /g, /p, or /group to chat with your group members.
 hud-chat-meta-group-joined = [{ $alias }] joined the group.
 hud-chat-meta-group-left = [{ $alias }] left the group.
 hud-chat-meta-group-invite-already-member = Invite failed: that player is already in your group.

@@ -95,7 +95,7 @@ hud-chat-singleplayer-motd2 = Como está a serenidade?
 
 # Mensagens de sistema sobre comandos do chat. Acompanha o idioma selecionado pelo jogador
 # nas configurações do jogo, independentemente da localidade do servidor.
-hud-chat-meta-group-join-hint = Digite /g ou /group para conversar com os membros do seu grupo.
+hud-chat-meta-group-join-hint = Digite /g, /p ou /group para conversar com os membros do seu grupo.
 hud-chat-meta-group-joined = [{ $alias }] entrou no grupo.
 hud-chat-meta-group-left = [{ $alias }] saiu do grupo.
 hud-chat-meta-group-invite-already-member = Falha no convite: esse jogador já está no seu grupo.

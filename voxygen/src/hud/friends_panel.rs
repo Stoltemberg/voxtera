@@ -110,6 +110,7 @@ widget_ids! {
         group_leave,
         group_invitee_separator,
         group_invitee_header,
+        group_invitee_prompt,
         draggable_area,
     }
 }
@@ -270,6 +271,17 @@ impl Widget for FriendsPanel<'_> {
             };
             if button.set(state.ids.tabs[i], ui).was_clicked() {
                 state.update(|s| s.tab = *tab);
+            }
+            // Active-tab underline: a thin coloured strip directly below the
+            // selected tab. The tint is ACCENT (gold) so it stands out from the
+            // dark background and the grey inactive tabs.
+            if state.tab == *tab {
+                Rectangle::fill_with(
+                    [90.0, 2.0],
+                    color::rgba(1.0, 0.85, 0.3, 0.85),
+                )
+                .top_left_with_margins_on(state.ids.tabs[i], 30.0, 0.0)
+                .set(state.ids.tabs[i], ui);
             }
         }
 
@@ -487,29 +499,34 @@ impl Widget for FriendsPanel<'_> {
                         .color(TEXT_COLOR)
                         .set(state.ids.group_member_names[name_idx], ui);
 
-                    // Status dot for member
+                    // Status dot for member. Green when online, grey when offline.
+                    // The leader keeps its own gold text color above; here we use
+                    // a more saturated tint for the leader slot to match the row.
+                    let dot_color = if member_online {
+                        color::rgb(0.25, 0.86, 0.35)
+                    } else {
+                        color::rgb(0.42, 0.42, 0.42)
+                    };
                     Text::new("\u{25CF}")
                         .top_left_with_margins_on(state.ids.content, row_y + 4.0, 348.0)
                         .font_id(self.fonts.cyri.conrod_id)
                         .font_size(self.fonts.cyri.scale(9))
-                        .color(if member_online {
-                            color::rgb(0.25, 0.86, 0.35)
-                        } else {
-                            color::rgb(0.42, 0.42, 0.42)
-                        })
+                        .color(dot_color)
                         .set(state.ids.group_member_status_dots[name_idx], ui);
 
-                    // Kick + Promote buttons (leader only, not self)
+                    // Kick + Promote buttons (leader only, not self). Sized and
+                    // placed so the labels do not collide with the row text and the
+                    // member row hit area under the name.
                     if is_leader && Some(uid) != my_uid {
                         if Button::image(self.imgs.button)
                             .hover_image(self.imgs.button_hover)
                             .press_image(self.imgs.button_press)
-                            .w_h(50.0, 20.0)
+                            .w_h(56.0, 22.0)
                             .label(&self.i18n.get_msg("hud-friends-group-kick"))
                             .label_font_id(self.fonts.cyri.conrod_id)
-                            .label_font_size(self.fonts.cyri.scale(9))
+                            .label_font_size(self.fonts.cyri.scale(10))
                             .label_color(TEXT_COLOR)
-                            .top_left_with_margins_on(state.ids.content, row_y - 2.0, 230.0)
+                            .top_left_with_margins_on(state.ids.content, row_y - 2.0, 224.0)
                             .set(state.ids.group_member_kick[name_idx], ui)
                             .was_clicked()
                         {
@@ -518,10 +535,10 @@ impl Widget for FriendsPanel<'_> {
                         if Button::image(self.imgs.button)
                             .hover_image(self.imgs.button_hover)
                             .press_image(self.imgs.button_press)
-                            .w_h(60.0, 20.0)
+                            .w_h(64.0, 22.0)
                             .label(&self.i18n.get_msg("hud-friends-group-promote"))
                             .label_font_id(self.fonts.cyri.conrod_id)
-                            .label_font_size(self.fonts.cyri.scale(9))
+                            .label_font_size(self.fonts.cyri.scale(10))
                             .label_color(TEXT_COLOR)
                             .right_from(state.ids.group_member_kick[name_idx], 4.0)
                             .set(state.ids.group_member_promote[name_idx], ui)
@@ -553,17 +570,27 @@ impl Widget for FriendsPanel<'_> {
                 }
             }
 
-            // Separator line + invitee section header
-            let separator_y = invitee_header_y - 6.0;
-            Rectangle::fill_with([388.0, 1.0], color::rgba(0.8, 0.8, 0.8, 0.3))
-                .top_left_with_margins_on(state.ids.content, separator_y, 6.0)
-                .set(state.ids.group_invitee_separator, ui);
-            Text::new(&self.i18n.get_msg("hud-friends-group-invite-title"))
-                .top_left_with_margins_on(state.ids.content, invitee_header_y, 10.0)
-                .font_id(self.fonts.cyri.conrod_id)
-                .font_size(self.fonts.cyri.scale(14))
-                .color(TEXT_COLOR)
-                .set(state.ids.group_invitee_header, ui);
+            // Separator line + invitee section header. Only render when there is
+            // something to separate from: either existing members or a pending open
+            // invite. This avoids a stray "Invite Friends" header floating over an
+            // empty list when the player has no group and no friends eligible.
+            let has_members_section = in_group;
+            let has_open_invite = self
+                .client
+                .invite()
+                .is_some_and(|(_, _, _, kind)| matches!(kind, InviteKind::Group));
+            if has_members_section || has_open_invite {
+                let separator_y = invitee_header_y - 6.0;
+                Rectangle::fill_with([388.0, 1.0], color::rgba(0.8, 0.8, 0.8, 0.3))
+                    .top_left_with_margins_on(state.ids.content, separator_y, 6.0)
+                    .set(state.ids.group_invitee_separator, ui);
+                Text::new(&self.i18n.get_msg("hud-friends-group-invite-title"))
+                    .top_left_with_margins_on(state.ids.content, invitee_header_y, 10.0)
+                    .font_id(self.fonts.cyri.conrod_id)
+                    .font_size(self.fonts.cyri.scale(14))
+                    .color(TEXT_COLOR)
+                    .set(state.ids.group_invitee_header, ui);
+            }
         }
 
         let friends = self.client.friends();
@@ -866,40 +893,66 @@ impl Widget for FriendsPanel<'_> {
             .set(state.ids.summary, ui);
 
         if state.tab == SocialTab::Group
-            && self
-                .client
-                .invite()
-                .is_some_and(|(_, _, _, kind)| matches!(kind, InviteKind::Group))
-        {
-            if Button::image(self.imgs.button)
-                .hover_image(self.imgs.button_hover)
-                .press_image(self.imgs.button_press)
-                .w_h(76.0, 24.0)
-                .label(&self.i18n.get_msg("hud-friends-accept"))
-                .label_font_id(self.fonts.cyri.conrod_id)
-                .label_font_size(self.fonts.cyri.scale(11))
-                .label_color(TEXT_COLOR)
-                .bottom_right_with_margins_on(state.ids.frame, 12.0, 98.0)
-                .set(state.ids.group_invite_accept, ui)
-                .was_clicked()
-            {
-                events.push(Event::AcceptGroupInvite);
-            }
-            if Button::image(self.imgs.button)
-                .hover_image(self.imgs.button_hover)
-                .press_image(self.imgs.button_press)
-                .w_h(76.0, 24.0)
-                .label(&self.i18n.get_msg("hud-friends-reject"))
-                .label_font_id(self.fonts.cyri.conrod_id)
-                .label_font_size(self.fonts.cyri.scale(11))
-                .label_color(TEXT_COLOR)
-                .bottom_right_with_margins_on(state.ids.frame, 12.0, 18.0)
-                .set(state.ids.group_invite_decline, ui)
-                .was_clicked()
-            {
-                events.push(Event::DeclineGroupInvite);
-            }
-        }
+                    && self
+                        .client
+                        .invite()
+                        .is_some_and(|(_, _, _, kind)| matches!(kind, InviteKind::Group))
+                {
+                    // Show a short prompt above the invitee list so the player
+                    // knows who sent the invitation and what the buttons are for.
+                    if let Some((uid, _, _, kind)) = self
+                        .client
+                        .invite()
+                        .filter(|(_, _, _, kind)| matches!(kind, InviteKind::Group))
+                    {
+                        let inviter_alias = self
+                            .client
+                            .player_list()
+                            .get(&uid)
+                            .map(|info| info.player_alias.as_str())
+                            .unwrap_or_else(|| "???");
+                        use i18n::{FluentArgs, FluentValue};
+                        let mut args = FluentArgs::new();
+                        args.set("name", FluentValue::from(inviter_alias));
+                        let prompt = self
+                            .i18n
+                            .get_msg_ctx("hud-friends-group-invite-open", &args);
+                        Text::new(&prompt)
+                            .bottom_right_with_margins_on(state.ids.frame, 5.0, 124.0)
+                            .font_id(self.fonts.cyri.conrod_id)
+                            .font_size(self.fonts.cyri.scale(12))
+                            .color(TEXT_COLOR)
+                            .set(state.ids.group_invitee_prompt, ui);
+                    }
+                    if Button::image(self.imgs.button)
+                        .hover_image(self.imgs.button_hover)
+                        .press_image(self.imgs.button_press)
+                        .w_h(76.0, 24.0)
+                        .label(&self.i18n.get_msg("hud-friends-accept"))
+                        .label_font_id(self.fonts.cyri.conrod_id)
+                        .label_font_size(self.fonts.cyri.scale(11))
+                        .label_color(TEXT_COLOR)
+                        .bottom_right_with_margins_on(state.ids.frame, 12.0, 98.0)
+                        .set(state.ids.group_invite_accept, ui)
+                        .was_clicked()
+                    {
+                        events.push(Event::AcceptGroupInvite);
+                    }
+                    if Button::image(self.imgs.button)
+                        .hover_image(self.imgs.button_hover)
+                        .press_image(self.imgs.button_press)
+                        .w_h(76.0, 24.0)
+                        .label(&self.i18n.get_msg("hud-friends-reject"))
+                        .label_font_id(self.fonts.cyri.conrod_id)
+                        .label_font_size(self.fonts.cyri.scale(11))
+                        .label_color(TEXT_COLOR)
+                        .bottom_right_with_margins_on(state.ids.frame, 12.0, 18.0)
+                        .set(state.ids.group_invite_decline, ui)
+                        .was_clicked()
+                    {
+                        events.push(Event::DeclineGroupInvite);
+                    }
+                }
 
         if self
             .global_state

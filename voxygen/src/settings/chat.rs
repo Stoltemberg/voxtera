@@ -76,6 +76,8 @@ pub struct ChatSettings {
     pub chat_character_name: bool,
     pub show_chat_timestamp: bool,
     pub chat_tabs: Vec<ChatTab>,
+    /// Prevents the one-time Party Chat tab migration from running again.
+    pub party_chat_tab_migrated: bool,
     pub chat_tab_index: Option<usize>,
     pub chat_cmd_prefix: char,
     pub chat_pos_x: f64,
@@ -122,7 +124,9 @@ impl Default for ChatSettings {
                         death_group: false,
                     },
                 },
+                Self::group_tab(),
             ],
+            party_chat_tab_migrated: true,
             chat_tab_index: Some(0),
             chat_cmd_prefix: '/',
             chat_pos_x: 10.0,
@@ -131,5 +135,59 @@ impl Default for ChatSettings {
             chat_size_y: DEFAULT_CHAT_BOX_HEIGHT,
             show_chat_timestamp: false,
         }
+    }
+}
+
+impl ChatSettings {
+    fn group_tab() -> ChatTab {
+        ChatTab {
+            label: String::from("Grupo"),
+            filter: ChatFilter {
+                message_all: false,
+                message_world: false,
+                message_region: false,
+                message_say: false,
+                message_group: true,
+                message_faction: false,
+                activity_all: false,
+                activity_group: true,
+                death_all: false,
+                death_group: true,
+            },
+        }
+    }
+
+    /// Adds the Party Chat tab once for existing settings files.
+    pub fn migrate_party_chat_tab(&mut self) {
+        if self.party_chat_tab_migrated {
+            return;
+        }
+
+        if self.chat_tabs.len() < MAX_CHAT_TABS
+            && !self.chat_tabs.iter().any(|tab| tab.label == "Grupo")
+        {
+            self.chat_tabs.push(Self::group_tab());
+        }
+
+        self.party_chat_tab_migrated = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ChatSettings;
+
+    #[test]
+    fn party_chat_tab_migration_adds_the_tab_only_once() {
+        let mut settings = ChatSettings::default();
+        settings.chat_tabs.pop();
+        settings.party_chat_tab_migrated = false;
+
+        settings.migrate_party_chat_tab();
+        assert!(settings.chat_tabs.iter().any(|tab| tab.label == "Grupo"));
+
+        settings.chat_tabs.retain(|tab| tab.label != "Grupo");
+        settings.migrate_party_chat_tab();
+        assert!(!settings.chat_tabs.iter().any(|tab| tab.label == "Grupo"));
     }
 }

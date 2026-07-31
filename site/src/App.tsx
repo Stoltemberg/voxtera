@@ -1,4 +1,4 @@
-import { DOWNLOAD_URL } from "./download";
+import { DOWNLOADS } from "./download";
 
 const startSteps = [
   {
@@ -45,6 +45,15 @@ function BuildIcon() {
   );
 }
 
+function LauncherDownloads() {
+  return (
+    <div className="download-actions" aria-label="Downloads do launcher">
+      <a className="button button-primary" href={DOWNLOADS.windows}>Baixar launcher para Windows (.exe)</a>
+      <a className="button button-secondary" href={DOWNLOADS.macos}>Baixar launcher para macOS (.app)</a>
+    </div>
+  );
+}
+
 export function App() {
   return (
     <div className="site-shell">
@@ -58,13 +67,13 @@ export function App() {
               <a href="#game">O jogo</a>
               <a href="#start">Começar</a>
             </nav>
-            <a className="header-download" href={DOWNLOAD_URL}>Baixar</a>
+            <a className="header-download" href="#downloads">Baixar</a>
           </header>
           <div className="hero-content page-width">
             <h1 id="hero-title">Sua aventura começa aqui</h1>
             <p className="hero-copy">Voxtera é um mundo aberto para explorar, construir e transformar cada descoberta em uma história sua.</p>
-            <a className="button button-primary" href={DOWNLOAD_URL}>Baixar launcher para Windows (.exe)</a>
-            <p className="platform-note">Windows 10/11 · instalação e atualizações automáticas</p>
+            <LauncherDownloads />
+            <p className="platform-note">Windows 10/11 · macOS Intel e Apple Silicon · instalação e atualizações automáticas</p>
           </div>
           <a className="scroll-cue" href="#game">Conheça o mundo <span aria-hidden="true">↓</span></a>
         </section>
@@ -129,13 +138,13 @@ export function App() {
           </div>
         </section>
 
-        <section className="download-band" aria-labelledby="download-title">
+        <section id="downloads" className="download-band" aria-labelledby="download-title">
           <img src="/images/voxtera-closing-valley.png" alt="Vale voxel com aventureiro e lobo" />
           <div className="download-band-shade" aria-hidden="true" />
           <div className="page-width download-band-content">
             <h2 id="download-title">Pronto para começar sua aventura?</h2>
             <p>Baixe o launcher e encontre seu próprio caminho em Voxtera.</p>
-            <a className="button button-primary" href={DOWNLOAD_URL}>Baixar launcher para Windows (.exe)</a>
+            <LauncherDownloads />
           </div>
         </section>
       </main>
@@ -144,7 +153,7 @@ export function App() {
         <div className="page-width footer-content">
           <a className="footer-brand" href="#top">VOXTERA</a>
           <p>Um mundo aberto, bloco por bloco.</p>
-          <a href={DOWNLOAD_URL}>Baixar launcher</a>
+          <a href="#downloads">Downloads</a>
         </div>
       </footer>
     </div>

@@ -23,24 +23,27 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Aventure-se" })).toBeInTheDocument();
   });
 
-  it("exposes the primary executable download action", () => {
+  it("exposes platform-specific launcher download actions", () => {
     render(<App />);
 
-    const downloadActions = [
-      screen.getByRole("link", { name: "Baixar" }),
-      ...screen.getAllByRole("link", {
+    const windowsDownloads = screen.getAllByRole("link", {
         name: "Baixar launcher para Windows (.exe)",
-      }),
-      screen.getByRole("link", { name: "Baixar launcher" }),
-    ];
+    });
+    const macosDownloads = screen.getAllByRole("link", {
+      name: "Baixar launcher para macOS (.app)",
+    });
 
-    expect(downloadActions).toHaveLength(4);
-    downloadActions.forEach((action) => {
+    expect(windowsDownloads).toHaveLength(2);
+    windowsDownloads.forEach((action) => {
       expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher.exe");
+    });
+    expect(macosDownloads).toHaveLength(2);
+    macosDownloads.forEach((action) => {
+      expect(action).toHaveAttribute("href", "/downloads/VoxteraLauncher.app.zip");
     });
   });
 
-  it("renders the approved hero artwork with a direct launcher download", () => {
+  it("renders the approved hero artwork with both platform launcher downloads", () => {
     render(<App />);
 
     expect(screen.getByAltText("Vale ensolarado de Voxtera com aventureiro e vila")).toHaveAttribute(
@@ -50,6 +53,10 @@ describe("App", () => {
     expect(screen.getAllByRole("link", { name: "Baixar launcher para Windows (.exe)" })[0]).toHaveAttribute(
       "href",
       "/downloads/VoxteraLauncher.exe",
+    );
+    expect(screen.getAllByRole("link", { name: "Baixar launcher para macOS (.app)" })[0]).toHaveAttribute(
+      "href",
+      "/downloads/VoxteraLauncher.app.zip",
     );
   });
 

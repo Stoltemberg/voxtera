@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+import sys
 
 a = Analysis(
     ['voxtera_launcher.py'],
@@ -15,12 +17,13 @@ a = Analysis(
     optimize=0,
 )
 pyz = PYZ(a.pure)
+is_macos = sys.platform == "darwin"
 
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
+    [] if is_macos else a.binaries,
+    [] if is_macos else a.datas,
     [],
     name='VoxteraLauncher',
     debug=False,
@@ -32,7 +35,29 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=None,
+    target_arch=os.environ.get("VOXTERA_PYINSTALLER_TARGET_ARCH"),
     codesign_identity=None,
     entitlements_file=None,
+    exclude_binaries=sys.platform == "darwin",
 )
+
+if is_macos:
+    from PyInstaller.building.osx import BUNDLE
+
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name="VoxteraLauncher",
+    )
+    app = BUNDLE(
+        coll,
+        name="VoxteraLauncher.app",
+        icon=None,
+        bundle_identifier="app.voxtera.launcher",
+        info_plist={"NSHighResolutionCapable": "True"},
+    )

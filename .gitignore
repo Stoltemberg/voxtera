@@ -3,6 +3,7 @@
 *.log
 *.rar
 *.zip
+!site/public/downloads/VoxteraLauncher.app.zip
 assets/tweak/
 maps
 notes.md

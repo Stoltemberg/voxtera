@@ -1284,6 +1284,14 @@ impl ServerChatCommand {
         })
     }
 
+    /// Extra keywords that also invoke this command, omitting the leading '/'.
+    pub fn aliases(&self) -> &'static [&'static str] {
+        match self {
+            ServerChatCommand::Group => &["p", "party"],
+            _ => &[],
+        }
+    }
+
     /// Produce an iterator over all the available commands
     pub fn iter() -> impl Iterator<Item = Self> + Clone { <Self as IntoEnumIterator>::iter() }
 
@@ -1302,14 +1310,16 @@ impl ServerChatCommand {
         ])
     }
 
-    /// Produce an iterator that first goes over all the short keywords
-    /// and their associated commands and then iterates over all the normal
-    /// keywords with their associated commands
+    /// Produce an iterator that first goes over all the short keywords,
+    /// then normal keywords, then aliases.
     pub fn iter_with_keywords() -> impl Iterator<Item = (&'static str, Self)> {
         Self::iter()
-        // Go through all the shortcuts first
-        .filter_map(|c| c.short_keyword().map(|s| (s, c)))
-        .chain(Self::iter().map(|c| (c.keyword(), c)))
+            .filter_map(|c| c.short_keyword().map(|s| (s, c)))
+            .chain(Self::iter().map(|c| (c.keyword(), c)))
+            .chain(
+                Self::iter()
+                    .flat_map(|c| c.aliases().iter().copied().map(move |s| (s, c))),
+            )
     }
 
     pub fn needs_role(&self) -> Option<comp::AdminRole> { self.data().needs_role }
@@ -1349,13 +1359,8 @@ impl FromStr for ServerChatCommand {
     type Err = ();
 
     fn from_str(keyword: &str) -> Result<ServerChatCommand, ()> {
-        Self::iter()
-        // Go through all the shortcuts first
-        .filter_map(|c| c.short_keyword().map(|s| (s, c)))
-        .chain(Self::iter().map(|c| (c.keyword(), c)))
-            // Find command with matching string as keyword
+        Self::iter_with_keywords()
             .find_map(|(kwd, command)| (kwd == keyword).then_some(command))
-            // Return error if not found
             .ok_or(())
     }
 }

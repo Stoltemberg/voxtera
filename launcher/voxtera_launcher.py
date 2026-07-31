@@ -7,11 +7,14 @@ Downloads updates from GitHub releases and launches the game.
 import hashlib
 import json
 import os
+import platform
 import socket
 import subprocess
 import sys
 import threading
 import time
+from dataclasses import dataclass
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from urllib.request import urlopen, Request
@@ -31,8 +34,78 @@ BASE_DIR = get_base_dir()
 GITHUB_REPO = "Stoltemberg/voxtera"
 GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
 CONFIG_FILE = os.path.join(BASE_DIR, "voxtera_config.json")
-GAME_EXE = "Voxtera.exe"
 DEFAULT_INSTALL_DIR = os.path.join(BASE_DIR, "game")
+
+
+@dataclass(frozen=True)
+class PlatformSpec:
+    key: str
+    archive_prefix: str
+    executable_path: tuple[str, ...]
+    assets_path: tuple[str, ...]
+
+
+PLATFORM_SPECS = {
+    "Windows": PlatformSpec(
+        key="windows-x64",
+        archive_prefix="Voxtera-windows-x64-",
+        executable_path=("Voxtera.exe",),
+        assets_path=("assets",),
+    ),
+    "Darwin": PlatformSpec(
+        key="macos-universal",
+        archive_prefix="Voxtera-macos-universal-",
+        executable_path=("Voxtera.app", "Contents", "MacOS", "Voxtera"),
+        assets_path=("Voxtera.app", "Contents", "Resources", "assets"),
+    ),
+}
+
+
+def platform_spec(system_name=None):
+    system_name = system_name or platform.system()
+    spec = PLATFORM_SPECS.get(system_name)
+    if spec is None:
+        raise RuntimeError(f"Unsupported platform: {system_name}")
+    return spec
+
+
+def find_platform_archive(release, spec):
+    matches = [
+        asset
+        for asset in release.get("assets", [])
+        if asset.get("name", "").startswith(spec.archive_prefix)
+        and asset.get("name", "").endswith(".zip")
+    ]
+    if len(matches) > 1:
+        raise RuntimeError(f"Multiple {spec.key} archives found in this release")
+    return matches[0] if matches else None
+
+
+def manifest_sha256_for_platform(manifest, spec, archive_name):
+    artifacts = manifest.get("artifacts")
+    if isinstance(artifacts, dict):
+        artifact = artifacts.get(spec.key)
+        if isinstance(artifact, dict) and artifact.get("archive") == archive_name:
+            sha256 = artifact.get("sha256")
+            return sha256.lower().strip() if isinstance(sha256, str) else None
+
+    # Releases created before platform-specific manifests remain valid on Windows.
+    if spec.key == "windows-x64":
+        sha256 = manifest.get("zip_sha256")
+        return sha256.lower().strip() if isinstance(sha256, str) else None
+    return None
+
+
+def installed_game_path(install_dir, spec):
+    return Path(install_dir).joinpath(*spec.executable_path)
+
+
+def game_launch_environment(install_dir, spec, environ=None):
+    environment = dict(os.environ if environ is None else environ)
+    assets_dir = Path(install_dir).joinpath(*spec.assets_path)
+    if assets_dir.is_dir():
+        environment["VELOREN_ASSETS"] = str(assets_dir)
+    return environment
 
 # ── Theme ──────────────────────────────────────────────────────────────────────
 BG_DARK = "#0d1117"
@@ -205,8 +278,10 @@ class VoxteraLauncher(tk.Tk):
         self.configure(bg=BG_DARK)
 
         self.cfg = load_config()
+        self.platform = platform_spec()
         self.latest_version = None
         self.download_url = None
+        self.download_asset = None
         self.manifest_url = None
         self._downloading = False
 
@@ -229,12 +304,11 @@ class VoxteraLauncher(tk.Tk):
 
         if os.path.exists(logo_path):
             try:
-                from PIL import Image, ImageTk
-                img = Image.open(logo_path)
-                img = img.resize((250, int(250 * img.height / img.width)), Image.LANCZOS)
-                self._logo_img = ImageTk.PhotoImage(img)
+                img = tk.PhotoImage(file=logo_path)
+                scale = max(1, (max(img.width(), img.height()) + 249) // 250)
+                self._logo_img = img.subsample(scale, scale)
                 tk.Label(main, image=self._logo_img, bg=BG_DARK).pack(pady=(10, 5))
-            except ImportError:
+            except tk.TclError:
                 tk.Label(main, text="VOXTERA", font=("Consolas", 42, "bold"),
                          bg=BG_DARK, fg=ACCENT).pack(pady=(20, 5))
         else:
@@ -318,9 +392,8 @@ class VoxteraLauncher(tk.Tk):
     # ── Install Check ─────────────────────────────────────────────────────────
 
     def _is_installed(self):
-        """Check if the game EXE actually exists in the install directory."""
-        game_path = os.path.join(self.cfg["install_dir"], GAME_EXE)
-        return os.path.isfile(game_path)
+        """Check if the platform-specific game executable exists."""
+        return installed_game_path(self.cfg["install_dir"], self.platform).is_file()
 
     # ── Update Check ───────────────────────────────────────────────────────────
 
@@ -356,10 +429,12 @@ class VoxteraLauncher(tk.Tk):
             release = releases[0]
             self.latest_version = release["tag_name"]
 
-            for asset in release.get("assets", []):
-                if asset["name"].endswith(".zip"):
-                    self.download_url = asset["browser_download_url"]
-                    break
+            self.download_asset = find_platform_archive(release, self.platform)
+            self.download_url = (
+                self.download_asset["browser_download_url"]
+                if self.download_asset is not None
+                else None
+            )
             self.manifest_url = find_manifest_url(release)
 
             local_ver = self.cfg.get("installed_version")
@@ -376,6 +451,9 @@ class VoxteraLauncher(tk.Tk):
                     if self._is_installed():
                         self.after(0, lambda: self.play_btn.config(state="normal"))
                         self.after(0, lambda: self.repair_btn.config(state="normal"))
+            else:
+                self.after(0, lambda: self._set_status(
+                    f"Sem pacote para {self.platform.key}", ACCENT))
 
         except Exception as e:
             self.after(0, lambda: self._set_status(f"Erro: {str(e)[:50]}", ACCENT))
@@ -447,7 +525,11 @@ class VoxteraLauncher(tk.Tk):
                 self.after(0, lambda: self.progress.start(15))
                 try:
                     manifest = fetch_manifest(self.manifest_url)
-                    expected_sha = (manifest.get("zip_sha256") or "").lower().strip()
+                    expected_sha = manifest_sha256_for_platform(
+                        manifest,
+                        self.platform,
+                        self.download_asset["name"],
+                    )
                 except Exception as me:
                     self.after(0, lambda: self.progress.stop())
                     self.after(0, lambda: self.progress.config(mode="determinate", value=0))
@@ -456,7 +538,8 @@ class VoxteraLauncher(tk.Tk):
                 if not expected_sha:
                     self.after(0, lambda: self.progress.stop())
                     self.after(0, lambda: self.progress.config(mode="determinate", value=0))
-                    raise RuntimeError("Manifest sem campo zip_sha256")
+                    raise RuntimeError(
+                        f"Manifest sem SHA-256 para {self.platform.key}")
 
                 self.after(0, lambda: self.progress.stop())
                 self.after(0, lambda: self.progress.config(mode="determinate"))
@@ -530,12 +613,19 @@ class VoxteraLauncher(tk.Tk):
     # ── Actions ────────────────────────────────────────────────────────────────
 
     def _play(self):
-        game_path = os.path.join(self.cfg["install_dir"], GAME_EXE)
-        if os.path.exists(game_path):
-            subprocess.Popen([game_path], cwd=self.cfg["install_dir"])
+        game_path = installed_game_path(self.cfg["install_dir"], self.platform)
+        if game_path.is_file():
+            subprocess.Popen(
+                [str(game_path)],
+                cwd=self.cfg["install_dir"],
+                env=game_launch_environment(self.cfg["install_dir"], self.platform),
+            )
             self.destroy()
         else:
-            messagebox.showerror("Erro", f"{GAME_EXE} não encontrado.\nBaixe o jogo primeiro.")
+            messagebox.showerror(
+                "Erro",
+                f"{game_path.name} não encontrado.\nBaixe o jogo primeiro.",
+            )
             d = filedialog.askdirectory(title="Selecione a pasta de instalação")
             if d:
                 self.cfg["install_dir"] = d
